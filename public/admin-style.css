@@ -1,0 +1,126 @@
+:root {
+    --primary-color: #6a5af9;
+    --primary-light: #f0edff;
+    --border-color: #e0dcfc;
+    --background-color: #f8f7fc;
+    --card-background: #ffffff;
+    --text-color: #333333;
+    --placeholder-text: #888888;
+    --disabled-bg: #e0e0e0;
+    --disabled-text: #a0a0a0;
+    --danger-color: #e63946;
+    --grey-text: #8d99ae;
+}
+*, *::before, *::after { box-sizing: border-box; }
+body {
+    font-family: 'Sarabun', sans-serif;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+}
+.container { width: 100%; max-width: 650px; }
+.card {
+    background-color: var(--card-background);
+    border-radius: 16px;
+    padding: 24px 32px;
+    box-shadow: 0 8px 30px rgba(106, 90, 249, 0.08);
+}
+.section { margin-bottom: 32px; }
+.section:last-child { margin-bottom: 0; }
+.section-title {
+    font-size: 1.2em;
+    font-weight: 700;
+    margin-top: 0;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #eee;
+}
+input, select, button, textarea {
+    font-family: 'Sarabun', sans-serif;
+    font-size: 1em;
+    border: 1px solid #d0d0d0;
+    border-radius: 8px;
+    padding: 0 12px;
+    width: 100%;
+    height: 42px;
+    vertical-align: middle;
+}
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary-color); }
+select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23888' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 30px;
+}
+button {
+    font-weight: bold;
+    color: #fff;
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    cursor: pointer;
+    transition: background-color 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+button:hover:not(:disabled) { background-color: #5848d9; }
+button:disabled {
+    background-color: var(--disabled-bg);
+    color: var(--disabled-text);
+    border-color: #dcdcdc;
+    cursor: not-allowed;
+}
+textarea {
+    min-height: 150px;
+    padding: 12px;
+    font-family: 'monospace', 'Sarabun', sans-serif;
+    background-color: #f9f9f9;
+    resize: vertical;
+    margin-bottom: 10px;
+    height: auto;
+}
+.item-form {
+    display: grid;
+    grid-template-columns: 0.7fr 2fr 1.5fr 1.5fr auto;
+    gap: 10px;
+    align-items: flex-end;
+}
+.form-group label, .input-group label { display: block; font-weight: bold; margin-bottom: 6px; font-size: 0.9em; }
+.customer-info-group { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.input-group.full-width { grid-column: 1 / -1; }
+.hidden { display: none; }
+#current-order-list .placeholder { text-align: center; color: var(--placeholder-text); padding: 20px 0; }
+.order-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    background-color: var(--primary-light);
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+.order-item-details { flex-grow: 1; margin-right: 10px; }
+.remove-item-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    padding: 0;
+    background-color: transparent;
+    border-color: #dcd6f7;
+    color: var(--grey-text);
+}
+.remove-item-btn:hover { background-color: var(--danger-color); border-color: var(--danger-color); color: white; }
+.remove-item-btn svg { width: 16px; height: 16px; }
+@media (max-width: 650px) {
+    .item-form, .customer-info-group { grid-template-columns: 1fr; }
+    .item-form button { margin-top: 10px; }
+}
+input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type=number] { -moz-appearance: textfield; }
+footer { text-align: center; margin-top: 24px; padding: 10px; font-size: 0.85em; color: var(--grey-text); }
