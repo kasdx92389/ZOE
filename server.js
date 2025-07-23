@@ -32,12 +32,13 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use(session({
-    secret: 'a-very-secret-key-for-your-session-12345',
+    secret: 'a-very-secret-key-for-your-session-12345', // ควรเป็น Environment Variable ใน Production
     resave: false,
     saveUninitialized: false,
     cookie: { 
-        secure: false, 
-        httpOnly: true 
+        secure: false, // สำหรับ localhost ควรเป็น false, ใน Production ควรเป็น true ถ้าใช้ HTTPS
+        httpOnly: true,
+        maxAge: 30 * 24 * 60 * 60 * 1000 // 30 วันในหน่วยมิลลิวินาที
     }
 }));
 
@@ -51,6 +52,10 @@ const requireLogin = (req, res, next) => {
 
 // --- Routes ---
 app.get('/', (req, res) => {
+    // ตรวจสอบว่ามี session อยู่หรือไม่ ถ้ามีให้ไปที่ dashboard เลย
+    if (req.session.userId) {
+        return res.redirect('/admin/dashboard');
+    }
     res.sendFile(path.join(__dirname, 'admin-login.html'));
 });
 
@@ -59,22 +64,17 @@ app.get('/register', (req, res) => {
 });
 
 app.post('/login', async (req, res) => {
-    const { username, password, remember } = req.body;
+    const { username, password } = req.body; // ไม่มี 'remember' แล้ว
     const userHash = users[username];
 
     if (userHash) {
         const match = await bcrypt.compare(password, userHash);
         if (match) {
             req.session.userId = username;
-            if (remember === 'true') {
-                req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000;
-            } else {
-                req.session.cookie.expires = false;
-            }
+            // maxAge ถูกตั้งค่าไว้ใน middleware express-session แล้ว
             return res.redirect('/admin/dashboard');
         }
     }
-    // เปลี่ยนจาก res.send เป็น res.redirect พร้อมส่ง error message
     const message = encodeURIComponent('Username หรือ Password ไม่ถูกต้อง');
     res.redirect(`/?error=${message}`);
 });
@@ -98,7 +98,6 @@ app.post('/register', async (req, res) => {
     try {
         fs.writeFileSync(USERS_FILE_PATH, JSON.stringify(users, null, 2));
         console.log('New user created and saved:', { username });
-        // ส่ง success message กลับไปหน้า login
         const message = encodeURIComponent('สร้างบัญชีสำเร็จ! กรุณาล็อกอิน');
         res.redirect(`/?success=${message}`);
     } catch (error) {
@@ -118,12 +117,12 @@ app.get('/logout', (req, res) => {
     });
 });
 
-// --- ส่วนของ Admin ที่ต้องล็อกอิน (ไม่มีการแก้ไข) ---
+// --- ส่วนของ Admin ที่ต้องล็อกอิน ---
 app.get('/admin/dashboard', requireLogin, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin-dashboard.html'));
 });
 
-app.get('/terms', requireLogin, (req, res) => {
+app.get('/terms', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'terms.html'));
 });
 
