@@ -6,7 +6,7 @@ const PORT = 3000;
 
 // --- ค่าคงที่ (ใช้รหัสผ่านแบบข้อความธรรมดา) ---
 const ADMIN_USER = 'admin';
-const ADMIN_PASSWORD = 'password123'; // <--- ตั้งรหัสผ่านที่ต้องการตรงนี้
+const ADMIN_PASSWORD = 'DgGUxU4N'; // <--- ตั้งรหัสผ่านที่ต้องการตรงนี้
 
 // --- Middleware ---
 app.use(express.urlencoded({ extended: true }));
