@@ -1,12 +1,31 @@
 const express = require('express');
 const path = require('path');
 const session = require('express-session');
+const bcrypt = require('bcrypt');
+const fs = require('fs');
 const app = express();
 const PORT = 3000;
 
-// --- ค่าคงที่ (ใช้รหัสผ่านแบบข้อความธรรมดา) ---
-const ADMIN_USER = 'admin';
-const ADMIN_PASSWORD = 'DgGUxU4N'; // <--- ตั้งรหัสผ่านที่ต้องการตรงนี้
+// --- ค่าคงที่ ---
+const MASTER_CODE = 'KESU-SECRET-2025';
+const saltRounds = 10;
+const USERS_FILE_PATH = path.join(__dirname, 'users.json');
+
+// --- ระบบจัดเก็บข้อมูลผู้ใช้ (อ่านจากไฟล์) ---
+let users = {};
+
+try {
+    const data = fs.readFileSync(USERS_FILE_PATH, 'utf8');
+    users = JSON.parse(data);
+} catch (error) {
+    console.log('users.json not found or is invalid. Creating a new one with a default admin...');
+    const defaultAdminPassword = 'DgGUxU4N';
+    const hashedDefaultPassword = bcrypt.hashSync(defaultAdminPassword, saltRounds);
+    users = {
+        'admin': hashedDefaultPassword
+    };
+    fs.writeFileSync(USERS_FILE_PATH, JSON.stringify(users, null, 2));
+}
 
 // --- Middleware ---
 app.use(express.urlencoded({ extended: true }));
@@ -16,7 +35,10 @@ app.use(session({
     secret: 'a-very-secret-key-for-your-session-12345',
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 } // อายุ session 1 วัน
+    cookie: { 
+        secure: false, 
+        httpOnly: true 
+    }
 }));
 
 const requireLogin = (req, res, next) => {
@@ -28,29 +50,64 @@ const requireLogin = (req, res, next) => {
 };
 
 // --- Routes ---
-
-// หน้าล็อกอิน
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'admin-login.html'));
 });
 
-// หน้าข้อกำหนด
-app.get('/terms', requireLogin, (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'terms.html'));
+app.get('/register', (req, res) => {
+    res.sendFile(path.join(__dirname, 'admin-register.html'));
 });
 
-// รับข้อมูลจากฟอร์ม Login
-app.post('/login', (req, res) => {
-    const { username, password } = req.body;
-    if (username === ADMIN_USER && password === ADMIN_PASSWORD) {
-        req.session.userId = ADMIN_USER;
-        res.redirect('/admin/dashboard');
-    } else {
-        res.status(401).send('Login Failed. <a href="/">Try again</a>');
+app.post('/login', async (req, res) => {
+    const { username, password, remember } = req.body;
+    const userHash = users[username];
+
+    if (userHash) {
+        const match = await bcrypt.compare(password, userHash);
+        if (match) {
+            req.session.userId = username;
+            if (remember === 'true') {
+                req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000;
+            } else {
+                req.session.cookie.expires = false;
+            }
+            return res.redirect('/admin/dashboard');
+        }
+    }
+    // เปลี่ยนจาก res.send เป็น res.redirect พร้อมส่ง error message
+    const message = encodeURIComponent('Username หรือ Password ไม่ถูกต้อง');
+    res.redirect(`/?error=${message}`);
+});
+
+app.post('/register', async (req, res) => {
+    const { username, password, master_code } = req.body;
+
+    if (master_code !== MASTER_CODE) {
+        const message = encodeURIComponent('รหัสโค้ดลับไม่ถูกต้อง.');
+        return res.redirect(`/register?error=${message}`);
+    }
+
+    if (users[username]) {
+        const message = encodeURIComponent('Username นี้มีผู้ใช้งานแล้ว.');
+        return res.redirect(`/register?error=${message}`);
+    }
+
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    users[username] = hashedPassword;
+
+    try {
+        fs.writeFileSync(USERS_FILE_PATH, JSON.stringify(users, null, 2));
+        console.log('New user created and saved:', { username });
+        // ส่ง success message กลับไปหน้า login
+        const message = encodeURIComponent('สร้างบัญชีสำเร็จ! กรุณาล็อกอิน');
+        res.redirect(`/?success=${message}`);
+    } catch (error) {
+        console.error('Failed to save new user:', error);
+        const message = encodeURIComponent('เกิดข้อผิดพลาดในการบันทึกข้อมูลผู้ใช้');
+        res.redirect(`/register?error=${message}`);
     }
 });
 
-// ออกจากระบบ
 app.get('/logout', (req, res) => {
     req.session.destroy(err => {
         if (err) {
@@ -61,14 +118,16 @@ app.get('/logout', (req, res) => {
     });
 });
 
-// --- ส่วนของ Admin ที่ต้องล็อกอิน ---
+// --- ส่วนของ Admin ที่ต้องล็อกอิน (ไม่มีการแก้ไข) ---
 app.get('/admin/dashboard', requireLogin, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin-dashboard.html'));
 });
 
-// --- เริ่มรันเซิร์ฟเวอร์ ---
+app.get('/terms', requireLogin, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'terms.html'));
+});
+
 app.listen(PORT, () => {
     console.log(`Server is running at http://localhost:${PORT}`);
-    console.log(`Admin user: ${ADMIN_USER}`);
-    console.log(`Admin pass: ${ADMIN_PASSWORD}`);
+    console.log(`Master Code for Registration: ${MASTER_CODE}`);
 });

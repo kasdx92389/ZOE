@@ -57,6 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function init() {
         populateSelects();
         addEventListeners();
+        setupDashboardPasswordToggles(); //  เพิ่มฟังก์ชันนี้
         updateCustomerInfoVisibility();
         updateSummaries();
     }
@@ -81,6 +82,18 @@ document.addEventListener('DOMContentLoaded', () => {
         copyFinalBtn.addEventListener('click', () => copyToClipboard(finalSummaryEl, copyFinalBtn, 'คัดลอก (ส่งให้ทีมงาน)'));
     }
 
+    //  ฟังก์ชันใหม่สำหรับเปิด-ปิดตาใน Dashboard
+    function setupDashboardPasswordToggles() {
+        const toggleIcon = document.querySelector('.toggle-password-icon');
+        if (toggleIcon) {
+            toggleIcon.addEventListener('click', function() {
+                const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                passwordInput.setAttribute('type', type);
+                this.classList.toggle('fa-eye-slash');
+            });
+        }
+    }
+    
     function handleItemNameInput() {
         const value = itemNameInput.value.trim().toUpperCase();
         let matchFound = false;
