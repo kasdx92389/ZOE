@@ -29,13 +29,7 @@
         input:focus { outline: none; border-color: var(--primary-color); }
         button { border: none; background-color: var(--primary-color); color: white; font-weight: 500; cursor: pointer; transition: background-color 0.2s; margin-top: 8px; }
         button:hover { background-color: #5848d9; }
-        .form-options { 
-            display: flex; 
-            justify-content: flex-end; /* แก้ไขตรงนี้ให้ชิดขวา */
-            align-items: center; 
-            font-size: 0.9em; 
-            margin-bottom: 24px; 
-        }
+        .form-options { display: flex; justify-content: space-between; align-items: center; font-size: 0.9em; margin-bottom: 24px; }
         .remember-me { display: flex; align-items: center; gap: 0.5rem; }
         a { color: var(--primary-color); text-decoration: none; font-weight: 500; }
         a:hover { text-decoration: underline; }
@@ -79,6 +73,10 @@
             </div>
             
             <div class="form-options">
+                <div class="remember-me">
+                    <input type="checkbox" id="remember" name="remember" value="true" style="height: 16px; width: 16px;">
+                    <label for="remember">Remember me</label>
+                </div>
                 <a href="/register">Create an account</a>
             </div>
             
