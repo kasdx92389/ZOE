@@ -66,6 +66,7 @@
                 </form>
             </div>
             <div class="modal-footer">
+                <button class="btn btn-subtle close-btn">Cancel</button>
                 <button type="submit" form="package-form" class="btn btn-primary">Save Package</button>
             </div>
         </div>
@@ -84,6 +85,7 @@
                 <div id="bulk-price-list" class="bulk-price-list"></div>
             </div>
             <div class="modal-footer">
+                <button class="btn btn-subtle close-btn">Cancel</button>
                 <button id="save-bulk-price-changes-btn" class="btn btn-primary">Save Changes</button>
             </div>
         </div>
@@ -126,11 +128,32 @@
                     </div>
             </div>
             <div class="modal-footer">
-                <button id="save-order-btn" class="btn btn-primary">Save</button>
+                <button class="btn btn-subtle close-btn">Cancel</button>
+                <button id="save-order-btn" class="btn btn-primary">Save Order</button>
             </div>
         </div>
     </div>
 
+    <div id="confirmation-modal" class="modal-overlay hidden modal-confirm">
+        <div class="modal-content">
+             <div class="modal-header">
+                <h3 id="confirm-title">Are you sure?</h3>
+                <button class="close-btn">
+                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="icon">
+                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+                </div>
+                <p id="confirm-message">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button id="cancel-action-btn" class="btn btn-subtle">Cancel</button>
+                <button id="confirm-action-btn" class="btn btn-danger">Confirm</button>
+            </div>
+        </div>
+    </div>
 
     <div class="container">
         <header class="page-header">
@@ -141,7 +164,7 @@
                 <input type="search" id="filter-input" placeholder="Search packages...">
             </div>
             <div class="action-group">
-                <button id="reorder-all-btn" class="btn">Re-Arrange</button>
+                <button id="reorder-all-btn" class="btn btn-subtle">Re-Arrange</button>
                 <button id="add-new-btn" class="btn btn-primary">
                     <span>Add New</span>
                 </button>
@@ -149,7 +172,12 @@
         </header>
         <main class="card">
             <div id="bulk-actions-bar" class="bulk-actions-bar hidden">
-                <span id="selection-count"></span>
+                <div class="bulk-actions-info">
+                    <span id="selection-count"></span>
+                    <button id="deselect-all-btn" class="deselect-btn" title="Deselect All">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8z"/></svg>
+                    </button>
+                </div>
                 <div class="bulk-actions-buttons">
                     <button id="bulk-price-btn" class="btn">Edit Prices</button>
                     <button id="bulk-status-btn" class="btn">Change Status</button>
@@ -165,8 +193,8 @@
                             <th>Price</th>
                             <th>Type</th>
                             <th>Game</th>
-                            <th class="status-column">Status</th>
-                            <th>Manage</th>
+                            <th>Status</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="package-table-body">
