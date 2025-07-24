@@ -3,58 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RESULT</title>
+    <title>Dashboard</title>
     <link rel="stylesheet" href="/admin-style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="container">
-        <div class="card">
+        <main class="card">
             <div class="section">
                 <form id="add-item-form" class="item-form">
-                    <div class="form-group quantity">
+                    <div class="form-group">
+                        <label for="game-selector">เลือกเกม</label>
+                        <select id="game-selector" required>
+                            <option value="">-- เลือกเกม --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="package-selector">เลือกแพ็กเกจ</label>
+                        <select id="package-selector" required disabled>
+                            <option value="">-- โปรดเลือกเกมก่อน --</option>
+                        </select>
+                    </div>
+                    <div class="form-group quantity-group">
                         <label for="item-quantity">จำนวน</label>
                         <input type="number" id="item-quantity" value="1" min="1" required>
                     </div>
-                    <div class="form-group name">
-                        <label for="item-name">แพ็กเกจ</label>
-                        <input type="text" id="item-name" placeholder="เช่น 1000VP" required>
-                    </div>
-                    <div class="form-group price">
-                        <label for="item-price">ราคา (฿)</label>
-                        <input type="number" id="item-price" placeholder="เช่น 250" step="0.01" required>
-                    </div>
-                    <div class="form-group type">
-                        <label for="item-type">ประเภท</label>
-                        <select id="item-type" required></select>
-                    </div>
-                    <button type="submit">เพิ่มรายการ</button>
+                    <button type="submit" class="btn btn-primary add-btn">เพิ่ม</button>
                 </form>
             </div>
 
             <div class="section">
-                <h3 class="section-title">รายการในออเดอร์</h3>
+                <h3 class="section-title">รายการปัจจุบัน</h3>
                 <div id="current-order-list">
                     <p class="placeholder">ยังไม่มีรายการในออเดอร์</p>
                 </div>
             </div>
 
-            <div class="section">
-                <h3 class="section-title">สรุปสำหรับแจ้งยอดลูกค้า</h3>
-                <textarea id="initial-summary" readonly placeholder="@"></textarea>
-                <button id="copy-initial-btn" disabled>คัดลอก (สำหรับแจ้งยอด)</button>
-            </div>
-
             <div class="section hidden" id="customer-info-section">
                 <h3 class="section-title">ข้อมูลลูกค้า</h3>
                 <div class="input-group full-width" style="margin-bottom: 12px;">
-                    <label for="game-select">Game</label>
-                    <select id="game-select"></select>
+                    <label for="game-display">เกม</label>
+                    <input type="text" id="game-display" readonly>
                 </div>
                 <div id="customer-info-container">
-                    <div class="customer-info-group hidden" id="uid-fields">
+                    <div class="customer-info-grid hidden" id="uid-fields">
                         <div class="input-group">
                             <label for="uid-input">UID</label>
                             <input type="text" id="uid-input" placeholder="กรอก UID ของลูกค้า">
@@ -64,7 +58,7 @@
                             <input type="text" id="server-input" placeholder="กรอกเซิร์ฟเวอร์">
                         </div>
                     </div>
-                    <div class="customer-info-group hidden" id="id-pass-fields">
+                    <div class="customer-info-grid hidden" id="id-pass-fields">
                         <div class="input-group">
                             <label for="id-email-input">ID/Email</label>
                             <input type="text" id="id-email-input" placeholder="กรอกไอดีหรืออีเมล">
@@ -74,29 +68,37 @@
                             <input type="text" id="password-input" placeholder="กรอกพาสเวิร์ด">
                         </div>
                         <div class="input-group">
-                            <label for="in-game-name-input">In-game Name</label>
+                            <label for="in-game-name-input">ชื่อในเกม</label>
                             <input type="text" id="in-game-name-input" placeholder="กรอกชื่อในเกม">
                         </div>
                         <div class="input-group">
-                            <label for="login-method-input">ช่องทางการล็อกอิน</label>
-                            <input type="text" id="login-method-input" placeholder="กรอกช่องทางการล็อกอิน">
+                            <label for="login-method-input">ช่องทางล็อกอิน</label>
+                            <input type="text" id="login-method-input" placeholder="เช่น Garena, Facebook">
                         </div>
                     </div>
-                    <div class="customer-info-group hidden" id="riot-fields">
+                    <div class="customer-info-grid hidden" id="riot-fields">
                         <div class="input-group full-width">
-                            <label for="riot-input">RIOT#</label>
-                            <input type="text" id="riot-input" placeholder="RIOTNAME#TAG">
+                            <label for="riot-input">RIOT ID</label>
+                            <input type="text" id="riot-input" placeholder="RiotName#TAG">
                         </div>
                     </div>
                 </div>
             </div>
-
-            <div class="section">
-                <h3 class="section-title">สรุปสำหรับส่งทีมงานเติม</h3>
-                <textarea id="final-summary" readonly placeholder="@"></textarea>
-                <button id="copy-final-btn" disabled>คัดลอก (ส่งให้ทีมงาน)</button>
+            
+            <div class="section summary-section">
+                <div class="summary-box">
+                    <h3 class="section-title">สรุปสำหรับแจ้งยอดลูกค้า</h3>
+                    <textarea id="initial-summary" readonly placeholder="สรุปยอดจะแสดงที่นี่..."></textarea>
+                    <button id="copy-initial-btn" class="btn btn-primary" disabled>คัดลอกแจ้งยอด</button>
+                </div>
+                <div class="summary-box">
+                    <h3 class="section-title">สรุปสำหรับส่งทีมงาน</h3>
+                    <textarea id="final-summary" readonly placeholder="ข้อมูลสำหรับทีมงานจะแสดงที่นี่..."></textarea>
+                    <button id="copy-final-btn" class="btn btn-primary" disabled>คัดลอกส่งทีมงาน</button>
+                </div>
             </div>
-        </div>
+
+        </main>
     </div>
     <script src="/script.js"></script>
 </body>
