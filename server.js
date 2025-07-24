@@ -4,6 +4,9 @@ const session = require('express-session');
 const bcrypt = require('bcrypt');
 const fs = require('fs');
 
+// ADD: Import the new file-based session store
+const FileStore = require('session-file-store')(session);
+
 const db = require('./database.js'); 
 const app = express();
 app.use(express.json()); 
@@ -36,15 +39,23 @@ try {
 // --- Middleware ---
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// CHANGED: Use the new FileStore for session management
 app.use(session({
+    store: new FileStore({
+        path: './sessions', // Folder to store session files
+        logFn: function() {} // Disable verbose logging
+    }),
     secret: 'a-very-secret-key-for-your-session-12345',
     resave: false,
     saveUninitialized: false,
     cookie: { 
+        maxAge: 30 * 24 * 60 * 60 * 1000, // Set the 30-day cookie here
         secure: false, 
         httpOnly: true 
     }
 }));
+
 const requireLogin = (req, res, next) => {
     if (req.session.userId) {
         next();
@@ -56,16 +67,18 @@ const requireLogin = (req, res, next) => {
 // --- Auth Routes ---
 app.get('/', (req, res) => { res.sendFile(path.join(__dirname, 'admin-login.html')); });
 app.get('/register', (req, res) => { res.sendFile(path.join(__dirname, 'admin-register.html')); });
+
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
     const userHash = users[username];
     if (userHash && await bcrypt.compare(password, userHash)) {
+        // Set the user ID on the session. The cookie settings are now handled above.
         req.session.userId = username;
-        req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000;
-        return res.redirect('/admin/homepage');
+        return res.redirect('/admin/dashboard');
     }
     res.redirect(`/?error=${encodeURIComponent('Username หรือ Password ไม่ถูกต้อง')}`);
 });
+
 app.post('/register', async (req, res) => {
     const { username, password, master_code } = req.body;
     if (master_code !== MASTER_CODE) return res.redirect(`/register?error=${encodeURIComponent('รหัสโค้ดลับไม่ถูกต้อง.')}`);
@@ -74,17 +87,20 @@ app.post('/register', async (req, res) => {
     fs.writeFileSync(USERS_FILE_PATH, JSON.stringify(users, null, 2));
     res.redirect(`/?success=${encodeURIComponent('สร้างบัญชีสำเร็จ! กรุณาล็อกอิน')}`);
 });
-app.get('/logout', (req, res) => { req.session.destroy(() => res.redirect('/')); });
 
-// --- Public Routes ---
-app.get('/terms', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'terms.html'));
+app.get('/logout', (req, res) => {
+    req.session.destroy(err => {
+        if (err) {
+            console.error("Error destroying session on logout:", err);
+        }
+        res.redirect('/');
+    });
 });
 
 // --- API Endpoints ---
-app.get('/api/packages', (req, res) => {
+app.get('/api/packages', requireLogin, (req, res) => {
     try {
-        const stmt = db.prepare('SELECT * FROM packages ORDER BY game_association, sort_order');
+        const stmt = db.prepare('SELECT * FROM packages ORDER BY sort_order');
         const packages = stmt.all();
         res.json(packages);
     } catch (error) {
@@ -92,7 +108,7 @@ app.get('/api/packages', (req, res) => {
     }
 });
 
-app.post('/api/packages', (req, res) => {
+app.post('/api/packages', requireLogin, (req, res) => {
     const { name, price, product_code, type, channel, game_association, originalId } = req.body;
     const transaction = db.transaction(() => {
         let newSortOrder;
@@ -125,7 +141,7 @@ app.post('/api/packages', (req, res) => {
     }
 });
 
-app.post('/api/packages/order', (req, res) => {
+app.post('/api/packages/order', requireLogin, (req, res) => {
     const { order } = req.body;
     if (!Array.isArray(order)) return res.status(400).json({ error: 'Invalid order data' });
     const updateStmt = db.prepare('UPDATE packages SET sort_order = ? WHERE id = ?');
@@ -141,7 +157,7 @@ app.post('/api/packages/order', (req, res) => {
     }
 });
 
-app.put('/api/packages/:id', (req, res) => {
+app.put('/api/packages/:id', requireLogin, (req, res) => {
     try {
         const { id } = req.params;
         const getStmt = db.prepare('SELECT * FROM packages WHERE id = ?');
@@ -163,7 +179,7 @@ app.put('/api/packages/:id', (req, res) => {
     }
 });
 
-app.delete('/api/packages/:id', (req, res) => {
+app.delete('/api/packages/:id', requireLogin, (req, res) => {
     try {
         const stmt = db.prepare('DELETE FROM packages WHERE id = ?');
         stmt.run(req.params.id);
@@ -173,7 +189,7 @@ app.delete('/api/packages/:id', (req, res) => {
     }
 });
 
-app.post('/api/packages/bulk-actions', (req, res) => {
+app.post('/api/packages/bulk-actions', requireLogin, (req, res) => {
     const { action, ids, status, priceUpdates } = req.body;
     if (!action || !Array.isArray(ids) || ids.length === 0) {
         return res.status(400).json({ error: 'Invalid request' });
@@ -210,24 +226,22 @@ app.post('/api/packages/bulk-actions', (req, res) => {
     }
 });
 
-
-// --- GAME ORDERING APIs ---
-app.get('/api/games/order', (req, res) => {
+app.get('/api/games/order', requireLogin, (req, res) => {
     let orderedGames = [];
     try {
         if (fs.existsSync(GAME_ORDER_FILE_PATH)) {
             orderedGames = JSON.parse(fs.readFileSync(GAME_ORDER_FILE_PATH, 'utf8'));
         }
-    } catch (e) { /* Ignore parsing errors, will be overwritten */ }
+    } catch (e) { /* Ignore parsing errors */ }
 
-    const allDbGames = db.prepare("SELECT DISTINCT game_association FROM packages WHERE is_active = 1").all().map(g => g.game_association);
+    const allDbGames = db.prepare("SELECT DISTINCT game_association FROM packages").all().map(g => g.game_association);
     const newGames = allDbGames.filter(g => !orderedGames.includes(g)).sort();
-    
     const finalGameOrder = [...orderedGames, ...newGames];
+    
     res.json(finalGameOrder);
 });
 
-app.post('/api/games/order', (req, res) => {
+app.post('/api/games/order', requireLogin, (req, res) => {
     try {
         const { gameOrder } = req.body;
         if (!Array.isArray(gameOrder)) {
@@ -240,44 +254,42 @@ app.post('/api/games/order', (req, res) => {
     }
 });
 
-
-// ===== CORE CHANGE HERE =====
-app.get('/api/dashboard-data', (req, res) => {
+app.get('/api/dashboard-data', requireLogin, (req, res) => {
     try {
-        // Fetch packages and explicitly order them by their sort_order
-        const packagesStmt = db.prepare('SELECT * FROM packages WHERE is_active = 1 ORDER BY sort_order');
-        const packages = packagesStmt.all();
-
-        let gameOrder = [];
+        let orderedGames = [];
         try {
             if (fs.existsSync(GAME_ORDER_FILE_PATH)) {
-                gameOrder = JSON.parse(fs.readFileSync(GAME_ORDER_FILE_PATH, 'utf8'));
+                orderedGames = JSON.parse(fs.readFileSync(GAME_ORDER_FILE_PATH, 'utf8'));
             }
         } catch (e) { /* ignore */ }
 
-        const allGamesSet = new Set(packages.map(p => p.game_association));
-
-        const sortedGames = Array.from(allGamesSet).sort((a, b) => {
-            const indexA = gameOrder.indexOf(a);
-            const indexB = gameOrder.indexOf(b);
-
-            if (indexA === -1 && indexB === -1) return a.localeCompare(b);
-            if (indexA === -1) return 1;
-            if (indexB === -1) return -1;
-            return indexA - indexB;
-        });
+        const allDbGames = db.prepare("SELECT DISTINCT game_association FROM packages").all().map(g => g.game_association);
+        const newGames = allDbGames.filter(g => !orderedGames.includes(g)).sort();
+        let sortedGames = [...orderedGames, ...newGames];
         
-        res.json({ packages, games: sortedGames });
+        const caseClauses = sortedGames.map((game, index) => `WHEN ? THEN ${index}`).join(' ');
+        const finalOrderBy = `ORDER BY CASE game_association ${caseClauses.length > 0 ? caseClauses : ''} ELSE 999 END, sort_order`;
+        
+        const packagesStmt = db.prepare(`SELECT * FROM packages ${finalOrderBy}`);
+        const packages = packagesStmt.all(...sortedGames);
+        
+        const activeGames = db.prepare("SELECT DISTINCT game_association FROM packages WHERE is_active = 1").all().map(g => g.game_association);
+        const finalSortedActiveGames = sortedGames.filter(game => activeGames.includes(game));
+
+        res.json({ packages, games: finalSortedActiveGames });
     } catch (error) {
+        console.error("Error fetching dashboard data:", error);
         res.status(500).json({ error: 'Failed to retrieve dashboard data' });
     }
 });
-// ============================
-
 
 // --- Admin Routes ---
-app.get('/admin/homepage', requireLogin, (req, res) => { res.sendFile(path.join(__dirname, 'public', 'homepage.html')); });
+app.get('/admin/homepage', requireLogin, (req, res) => { 
+    res.redirect('/admin/dashboard'); 
+});
 app.get('/admin/dashboard', requireLogin, (req, res) => { res.sendFile(path.join(__dirname, 'public', 'admin-dashboard.html')); });
 app.get('/admin/packages', requireLogin, (req, res) => { res.sendFile(path.join(__dirname, 'public', 'package-management.html')); });
+app.get('/admin/terms', requireLogin, (req, res) => { res.sendFile(path.join(__dirname, 'public', 'terms.html')); });
+
 
 app.listen(PORT, () => console.log(`Server is running at http://localhost:${PORT}`));

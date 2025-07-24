@@ -9,6 +9,19 @@
     --text-light: #6b7280;
 }
 
+/* --- Page Load Animation --- */
+@keyframes fadeInPage {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+
 /* Basic Styles */
 *, *::before, *::after { box-sizing: border-box; }
 body {
@@ -21,6 +34,7 @@ body {
     justify-content: center;
     align-items: center;
     min-height: 100vh;
+    animation: fadeInPage 0.4s ease-out forwards;
 }
 .container {
     width: 100%;
@@ -49,7 +63,6 @@ body {
 .card {
     background-color: var(--card-background);
     border-radius: 12px;
-    border: 1px solid var(--border-color);
     padding: 28px 32px;
     text-align: center;
     transition: all 0.2s ease;

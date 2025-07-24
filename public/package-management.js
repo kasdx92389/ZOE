@@ -36,15 +36,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const bulkStatusModal = document.getElementById('bulk-status-modal');
     const setActiveBtn = document.getElementById('set-active-btn');
     const setInactiveBtn = document.getElementById('set-inactive-btn');
-    const reorderGamesBtn = document.getElementById('reorder-games-btn');
-    const gameOrderModal = document.getElementById('game-order-modal');
-    const gameOrderList = document.getElementById('game-order-list');
-    const saveGameOrderBtn = document.getElementById('save-game-order-btn');
+
+    // Order Modal
+    const reorderAllBtn = document.getElementById('reorder-all-btn');
+    const orderModal = document.getElementById('order-modal');
+    const orderListContainer = document.getElementById('order-list-container');
+    const saveOrderBtn = document.getElementById('save-order-btn');
 
     // --- API ENDPOINTS ---
-    const API_URL = '/api/packages';
+    const DASHBOARD_DATA_API_URL = '/api/dashboard-data';
     const BULK_API_URL = '/api/packages/bulk-actions';
     const GAME_ORDER_API_URL = '/api/games/order';
+    const PACKAGE_ORDER_API_URL = '/api/packages/order';
+    const API_URL = '/api/packages';
+
 
     // --- UTILITY & RENDER FUNCTIONS ---
     const showToast = (message, type = 'success') => {
@@ -106,7 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (paginatedPackages.length === 0 && currentPage === 1) {
-            tableBody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 40px;">No packages found.</td></tr>`;
+            tableBody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 40px;">No packages found.</td></tr>`;
             renderPagination(0);
             return;
         }
@@ -122,13 +127,18 @@ document.addEventListener('DOMContentLoaded', () => {
             
             row.innerHTML = `
                 <td class="checkbox-cell"><input type="checkbox" data-id="${pkg.id}" ${isSelected ? 'checked' : ''}></td>
-                <td class="drag-handle"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M10 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm5 0a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm-5 6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm5 0a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm-5 6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm5 0a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z"></path></svg></td>
                 <td><div class="package-details"><div class="name">${pkg.name || ''}</div><div class="code">${pkg.product_code || ''}</div></div></td>
                 <td>${(pkg.price || 0).toFixed(2)}</td>
                 <td>${pkg.type || ''}</td>
                 <td>${pkg.game_association || ''}</td>
                 <td class="status-column"><span class="status-toggle ${statusClass}" data-id="${pkg.id}" data-status="${pkg.is_active}">${statusText}</span></td>
-                <td class="actions-cell"><div class="kebab-menu"><button class="kebab-toggle" data-id="${pkg.id}"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M9.5 13a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"/></svg></button></div></td>
+                <td class="actions-cell">
+                    <div class="kebab-menu">
+                        <button class="kebab-toggle" data-id="${pkg.id}">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M9.5 13a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"/></svg>
+                        </button>
+                    </div>
+                </td>
             `;
             tableBody.appendChild(row);
         });
@@ -141,7 +151,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const getFilteredPackages = () => {
         const searchTerm = filterInput.value.toLowerCase();
         const selectedGame = gameFilter.value;
-        return allPackages.filter(pkg => 
+
+        let packagesToFilter = [...allPackages];
+
+        return packagesToFilter.filter(pkg => 
             (selectedGame ? pkg.game_association === selectedGame : true) &&
             (searchTerm ? ((pkg.name || '').toLowerCase().includes(searchTerm) || (pkg.product_code || '').toLowerCase().includes(searchTerm)) : true)
         );
@@ -151,10 +164,9 @@ document.addEventListener('DOMContentLoaded', () => {
         filteredPackages = getFilteredPackages();
         renderTable(filteredPackages);
     };
-
-    const populateGameFilter = (packages) => {
+    
+    const populateGameFilter = (games) => {
         const currentSelection = gameFilter.value;
-        const games = [...new Set(packages.map(p => p.game_association))].sort();
         gameFilter.innerHTML = '<option value="">All Games</option>';
         games.forEach(game => {
             const option = document.createElement('option');
@@ -167,13 +179,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const fetchAndRenderPackages = async (resetSelection = true) => {
         try {
-            const response = await fetch(API_URL);
-            if (!response.ok) throw new Error('Failed to fetch packages');
-            allPackages = await response.json(); 
+            const response = await fetch(DASHBOARD_DATA_API_URL);
+            if (!response.ok) throw new Error('Failed to fetch data');
+            const data = await response.json();
+            allPackages = data.packages || [];
+            const sortedGames = data.games || [];
+            
             if(resetSelection) {
                 selectedPackageIds.clear();
             }
-            populateGameFilter(allPackages);
+            populateGameFilter(sortedGames);
             applyFiltersAndRender();
             updateBulkActionsBar();
         } catch (error) {
@@ -383,85 +398,107 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => dropdown.classList.add('show'), 10);
     };
 
-    const initSortable = () => {
-        if (typeof Sortable === 'undefined') {
-            console.error("SortableJS library is not loaded.");
-            return;
-        }
+    const handleOpenOrderModal = async () => {
+        orderListContainer.innerHTML = '<h3>Loading...</h3>';
+        showModal(orderModal);
 
-        new Sortable(tableBody, {
-            handle: '.drag-handle',
-            animation: 150,
-            ghostClass: 'sortable-ghost',
-            onEnd: async (evt) => {
-                const rows = tableBody.querySelectorAll('tr[data-id]');
-                const newOrder = Array.from(rows).map(row => parseInt(row.dataset.id, 10));
+        try {
+            const response = await fetch(DASHBOARD_DATA_API_URL);
+            if (!response.ok) throw new Error('Could not fetch latest data');
+            const data = await response.json();
+            const sortedGames = data.games;
+            const sortedPackages = data.packages;
 
-                try {
-                    const response = await fetch('/api/packages/order', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ order: newOrder })
+            orderListContainer.innerHTML = '';
+
+            sortedGames.forEach(game => {
+                const gamePackages = sortedPackages.filter(p => p.game_association === game);
+                
+                if (gamePackages.length > 0) {
+                    const groupEl = document.createElement('div');
+                    groupEl.className = 'package-group';
+                    groupEl.dataset.gameName = game;
+
+                    const headerEl = document.createElement('div');
+                    headerEl.className = 'package-group-header collapsed';
+                    headerEl.innerHTML = `
+                        <span class="group-drag-handle">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M7 4.5a.5.5 0 0 0-1 0v7a.5.5 0 0 0 1 0v-7zm4 0a.5.5 0 0 0-1 0v7a.5.5 0 0 0 1 0v-7z"/></svg>
+                        </span>
+                        <span>${game}</span>
+                        <span class="group-toggle-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M7.646 4.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1-.708.708L8 5.707l-5.646 5.647a.5.5 0 0 1-.708-.708l6-6z" transform="rotate(90 8 8)"/></svg>
+                        </span>
+                    `;
+                    
+                    const itemsContainer = document.createElement('div');
+                    itemsContainer.className = 'package-group-items collapsed';
+
+                    gamePackages.forEach(pkg => {
+                        const itemEl = document.createElement('div');
+                        itemEl.className = 'package-order-item';
+                        itemEl.dataset.id = pkg.id;
+                        itemEl.textContent = pkg.name;
+                        itemsContainer.appendChild(itemEl);
                     });
 
-                    if (!response.ok) {
-                        throw new Error('Failed to update order on the server.');
-                    }
-                    
-                    showToast('Order updated successfully!', 'success');
-                    await fetchAndRenderPackages(false);
+                    groupEl.appendChild(headerEl);
+                    groupEl.appendChild(itemsContainer);
+                    orderListContainer.appendChild(groupEl);
 
-                } catch (error) {
-                    showToast('Error: Could not save the new order.', 'error');
-                    await fetchAndRenderPackages(false);
+                    new Sortable(itemsContainer, {
+                        group: 'packages',
+                        animation: 150,
+                        ghostClass: 'sortable-ghost',
+                    });
                 }
-            }
-        });
-    };
-    
-    const handleOpenGameOrderModal = async () => {
-        try {
-            const response = await fetch(GAME_ORDER_API_URL);
-            if (!response.ok) throw new Error('Could not fetch game order');
-            const games = await response.json();
-            
-            gameOrderList.innerHTML = ''; 
-            games.forEach(game => {
-                const item = document.createElement('div');
-                item.className = 'game-order-item';
-                item.textContent = game;
-                item.dataset.gameName = game;
-                gameOrderList.appendChild(item);
             });
 
-            new Sortable(gameOrderList, {
+            new Sortable(orderListContainer, {
+                handle: '.group-drag-handle',
                 animation: 150,
                 ghostClass: 'sortable-ghost',
             });
 
-            showModal(gameOrderModal);
         } catch (error) {
-            showToast('Error loading game order.', 'error');
+            orderListContainer.innerHTML = '<h3>Error loading order data.</h3>';
+            showToast('Error loading data.', 'error');
+            console.error(error);
         }
     };
-    
-    const handleSaveGameOrder = async () => {
-        const items = gameOrderList.querySelectorAll('.game-order-item');
-        const newGameOrder = Array.from(items).map(item => item.dataset.gameName);
+
+    const handleSaveOrder = async () => {
+        const gameGroupElements = orderListContainer.querySelectorAll('.package-group');
+        const newGameOrder = Array.from(gameGroupElements).map(g => g.dataset.gameName);
+
+        const packageElements = orderListContainer.querySelectorAll('.package-order-item');
+        const newPackageOrder = Array.from(packageElements).map(p => parseInt(p.dataset.id, 10));
 
         try {
-            const response = await fetch(GAME_ORDER_API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ gameOrder: newGameOrder })
-            });
+            const [gameResponse, packageResponse] = await Promise.all([
+                fetch(GAME_ORDER_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ gameOrder: newGameOrder })
+                }),
+                fetch(PACKAGE_ORDER_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ order: newPackageOrder })
+                })
+            ]);
 
-            if (!response.ok) throw new Error('Could not save game order');
+            if (!gameResponse.ok || !packageResponse.ok) {
+                throw new Error('Failed to save one or more order lists.');
+            }
 
-            hideModal(gameOrderModal);
-            showToast('Game order saved!', 'success');
+            hideModal(orderModal);
+            showToast('Order saved successfully!', 'success');
+            await fetchAndRenderPackages(false);
+
         } catch (error) {
-            showToast('Error saving game order.', 'error');
+            showToast('Error saving order.', 'error');
+            console.error(error);
         }
     };
 
@@ -501,9 +538,20 @@ document.addEventListener('DOMContentLoaded', () => {
         bulkPriceBtn.addEventListener('click', openBulkPriceModal);
         saveBulkPriceChangesBtn.addEventListener('click', handleSaveBulkPriceChanges);
         
-        reorderGamesBtn.addEventListener('click', handleOpenGameOrderModal);
-        gameOrderModal.querySelector('.close-btn').addEventListener('click', () => hideModal(gameOrderModal));
-        saveGameOrderBtn.addEventListener('click', handleSaveGameOrder);
+        reorderAllBtn.addEventListener('click', handleOpenOrderModal);
+        orderModal.querySelector('.close-btn').addEventListener('click', () => hideModal(orderModal));
+        saveOrderBtn.addEventListener('click', handleSaveOrder);
+        
+        orderListContainer.addEventListener('click', (e) => {
+            const header = e.target.closest('.package-group-header');
+            if (header) {
+                const items = header.nextElementSibling;
+                if (items && items.classList.contains('package-group-items')) {
+                    header.classList.toggle('collapsed');
+                    items.classList.toggle('collapsed');
+                }
+            }
+        });
         
         document.body.addEventListener('click', (e) => {
             const target = e.target;
@@ -525,7 +573,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         fetchAndRenderPackages();
-        initSortable();
     }
 
     init();
