@@ -57,18 +57,17 @@ app.use(session({
 // --- Middleware สำหรับตรวจสอบการล็อกอิน ---
 const requireLogin = (req, res, next) => {
     if (req.session.userId) {
-        return next(); // ถ้าล็อกอินแล้ว ให้ไปต่อ
+        return next();
     }
-    res.redirect('/'); // ถ้ายังไม่ล็อกอิน ให้กลับไปหน้าแรก
+    res.redirect('/');
 };
 
 // --- ROUTING ---
-
 // 1. กำหนด Route ที่ต้องล็อกอินก่อนเข้าถึง
 app.get('/homepage.html', requireLogin);
 app.get('/package-management.html', requireLogin);
 app.get('/admin-dashboard.html', requireLogin);
-app.use('/api', requireLogin); // API ทุกตัวต้องล็อกอิน
+app.use('/api', requireLogin);
 
 // 2. ถ้าล็อกอินแล้วเข้าหน้าแรก ให้ redirect ไป dashboard
 app.get('/', (req, res, next) => {
