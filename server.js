@@ -289,7 +289,8 @@ app.get('/admin/homepage', requireLogin, (req, res) => {
 });
 app.get('/admin/dashboard', requireLogin, (req, res) => { res.sendFile(path.join(__dirname, 'public', 'admin-dashboard.html')); });
 app.get('/admin/packages', requireLogin, (req, res) => { res.sendFile(path.join(__dirname, 'public', 'package-management.html')); });
-app.get('/admin/terms', requireLogin, (req, res) => { res.sendFile(path.join(__dirname, 'public', 'terms.html')); });
+app.get('/terms', (req, res) => {res.sendFile(path.join(__dirname, 'public', 'terms.html'));
+});
 
 
 app.listen(PORT, () => console.log(`Server is running at http://localhost:${PORT}`));
