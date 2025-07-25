@@ -1,11 +1,12 @@
 const express = require('express');
-const path = require('path');
+const path =require('path');
 const session = require('express-session');
 const bcrypt = require('bcrypt');
 const fs = require('fs');
 
-// ADD: Import the new file-based session store
-const FileStore = require('session-file-store')(session);
+// 1. Redis Imports
+const redis = require('redis');
+const RedisStore = require("connect-redis").default;
 
 const db = require('./database.js'); 
 const app = express();
@@ -17,11 +18,9 @@ const PORT = 3000;
 const USERS_FILE_PATH = path.join(__dirname, 'users.json');
 const GAME_ORDER_FILE_PATH = path.join(__dirname, 'game_order.json');
 
-
 // --- ค่าคงที่ ---
 const MASTER_CODE = 'KESU-SECRET-2025';
 const saltRounds = 10;
-
 
 // --- ระบบจัดเก็บข้อมูลผู้ใช้ (อ่านจากไฟล์) ---
 let users = {};
@@ -40,18 +39,27 @@ try {
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// CHANGED: Use the new FileStore for session management
+// 2. Initialize Redis Client
+// (ต้องนำ REDIS_URL มาจากการตั้งค่าบน Hosting ของคุณ)
+const redisClient = redis.createClient({
+    url: process.env.REDIS_URL || 'redis://localhost:6379'
+});
+redisClient.connect().catch(console.error);
+
+const redisStore = new RedisStore({
+    client: redisClient,
+    prefix: "gametopup:", // (Optional)
+});
+
+// 3. Configure Session with Redis Store
 app.use(session({
-    store: new FileStore({
-        path: './sessions', // Folder to store session files
-        logFn: function() {} // Disable verbose logging
-    }),
+    store: redisStore,
     secret: 'a-very-secret-key-for-your-session-12345',
     resave: false,
     saveUninitialized: false,
     cookie: { 
-        maxAge: 30 * 24 * 60 * 60 * 1000, // Set the 30-day cookie here
-        secure: false, 
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        secure: false, // ตั้งเป็น true หากเว็บของคุณเป็น HTTPS
         httpOnly: true 
     }
 }));
@@ -65,14 +73,13 @@ const requireLogin = (req, res, next) => {
 };
 
 // --- Auth Routes ---
-app.get('/', (req, res) => { res.sendFile(path.join(__dirname, 'admin-login.html')); });
-app.get('/register', (req, res) => { res.sendFile(path.join(__dirname, 'admin-register.html')); });
+app.get('/', (req, res) => { res.sendFile(path.join(__dirname, 'public', 'admin-login.html')); });
+app.get('/register', (req, res) => { res.sendFile(path.join(__dirname, 'public', 'admin-register.html')); });
 
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
     const userHash = users[username];
     if (userHash && await bcrypt.compare(password, userHash)) {
-        // Set the user ID on the session. The cookie settings are now handled above.
         req.session.userId = username;
         return res.redirect('/admin/dashboard');
     }
@@ -283,14 +290,14 @@ app.get('/api/dashboard-data', requireLogin, (req, res) => {
     }
 });
 
+
 // --- Admin Routes ---
-app.get('/admin/homepage', requireLogin, (req, res) => { 
-    res.redirect('/admin/dashboard'); 
+app.get('/admin/homepage', requireLogin, (req, res) => {
+    res.redirect('/admin/dashboard');
 });
 app.get('/admin/dashboard', requireLogin, (req, res) => { res.sendFile(path.join(__dirname, 'public', 'admin-dashboard.html')); });
 app.get('/admin/packages', requireLogin, (req, res) => { res.sendFile(path.join(__dirname, 'public', 'package-management.html')); });
 app.get('/terms', (req, res) => {res.sendFile(path.join(__dirname, 'public', 'terms.html'));
 });
-
 
 app.listen(PORT, () => console.log(`Server is running at http://localhost:${PORT}`));
