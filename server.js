@@ -3,9 +3,9 @@ const path = require('path');
 const session = require('express-session');
 const bcrypt = require('bcrypt');
 const fs = require('fs');
+
+// ADD: Import the new file-based session store
 const FileStore = require('session-file-store')(session);
-const http = require('http');
-const { WebSocketServer } = require('ws');
 
 const db = require('./database.js'); 
 const app = express();
@@ -13,34 +13,15 @@ app.use(express.json());
 
 const PORT = 3000;
 
-// --- Create HTTP and WebSocket Servers ---
-const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
-
-// --- WebSocket Connection Handling ---
-wss.on('connection', ws => {
-    console.log('Client connected to WebSocket');
-    ws.on('close', () => {
-        console.log('Client disconnected');
-    });
-});
-
-function broadcast(data) {
-    const message = JSON.stringify(data);
-    wss.clients.forEach(client => {
-        if (client.readyState === client.OPEN) {
-            client.send(message);
-        }
-    });
-}
-
 // --- File Paths ---
 const USERS_FILE_PATH = path.join(__dirname, 'users.json');
 const GAME_ORDER_FILE_PATH = path.join(__dirname, 'game_order.json');
 
+
 // --- ค่าคงที่ ---
 const MASTER_CODE = 'KESU-SECRET-2025';
 const saltRounds = 10;
+
 
 // --- ระบบจัดเก็บข้อมูลผู้ใช้ (อ่านจากไฟล์) ---
 let users = {};
@@ -59,16 +40,17 @@ try {
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// CHANGED: Use the new FileStore for session management
 app.use(session({
     store: new FileStore({
-        path: './sessions',
-        logFn: function() {}
+        path: './sessions', // Folder to store session files
+        logFn: function() {} // Disable verbose logging
     }),
     secret: 'a-very-secret-key-for-your-session-12345',
     resave: false,
     saveUninitialized: false,
     cookie: { 
-        maxAge: 30 * 24 * 60 * 60 * 1000,
+        maxAge: 30 * 24 * 60 * 60 * 1000, // Set the 30-day cookie here
         secure: false, 
         httpOnly: true 
     }
@@ -83,13 +65,14 @@ const requireLogin = (req, res, next) => {
 };
 
 // --- Auth Routes ---
-app.get('/', (req, res) => { res.sendFile(path.join(__dirname, 'public', 'admin-login.html')); });
-app.get('/register', (req, res) => { res.sendFile(path.join(__dirname, 'public', 'admin-register.html')); });
+app.get('/', (req, res) => { res.sendFile(path.join(__dirname, 'admin-login.html')); });
+app.get('/register', (req, res) => { res.sendFile(path.join(__dirname, 'admin-register.html')); });
 
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
     const userHash = users[username];
     if (userHash && await bcrypt.compare(password, userHash)) {
+        // Set the user ID on the session. The cookie settings are now handled above.
         req.session.userId = username;
         return res.redirect('/admin/dashboard');
     }
@@ -112,11 +95,6 @@ app.get('/logout', (req, res) => {
         }
         res.redirect('/');
     });
-});
-
-// --- Public Route for Terms ---
-app.get('/terms', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'terms.html'));
 });
 
 // --- API Endpoints ---
@@ -157,7 +135,6 @@ app.post('/api/packages', requireLogin, (req, res) => {
     try {
         const result = transaction();
         res.status(201).json(result);
-        broadcast({ event: 'packages_updated' });
     } catch (error) {
         console.error("Failed to create package:", error);
         res.status(500).json({ error: 'Failed to create package', details: error.message });
@@ -175,7 +152,6 @@ app.post('/api/packages/order', requireLogin, (req, res) => {
         const packagesToUpdate = order.map((id, index) => ({ id: id, sort_order: index }));
         updateTransaction(packagesToUpdate);
         res.json({ message: 'Order updated successfully' });
-        broadcast({ event: 'packages_updated' });
     } catch (error) {
         res.status(500).json({ error: 'Failed to update order' });
     }
@@ -198,7 +174,6 @@ app.put('/api/packages/:id', requireLogin, (req, res) => {
         `);
         updateStmt.run(name, price, product_code, type, channel, game_association, is_active, id);
         res.json({ message: 'Package updated successfully' });
-        broadcast({ event: 'packages_updated' });
     } catch (error) {
         res.status(500).json({ error: 'Failed to update package' });
     }
@@ -209,7 +184,6 @@ app.delete('/api/packages/:id', requireLogin, (req, res) => {
         const stmt = db.prepare('DELETE FROM packages WHERE id = ?');
         stmt.run(req.params.id);
         res.json({ message: 'Package deleted successfully' });
-        broadcast({ event: 'packages_updated' });
     } catch (error) {
         res.status(500).json({ error: 'Failed to delete package' });
     }
@@ -246,7 +220,6 @@ app.post('/api/packages/bulk-actions', requireLogin, (req, res) => {
     try {
         const result = runInTransaction();
         res.json(result);
-        broadcast({ event: 'packages_updated' });
     } catch (error) {
         console.error('Bulk action error:', error);
         res.status(500).json({ error: 'Failed to perform bulk action', details: error.message });
@@ -276,7 +249,6 @@ app.post('/api/games/order', requireLogin, (req, res) => {
         }
         fs.writeFileSync(GAME_ORDER_FILE_PATH, JSON.stringify(gameOrder, null, 2));
         res.json({ message: 'Game order saved successfully.' });
-        broadcast({ event: 'packages_updated' });
     } catch (error) {
         res.status(500).json({ error: 'Failed to save game order.' });
     }
@@ -315,9 +287,9 @@ app.get('/api/dashboard-data', requireLogin, (req, res) => {
 app.get('/admin/homepage', requireLogin, (req, res) => { 
     res.redirect('/admin/dashboard'); 
 });
-app.get('/admin/dashboard', requireLogin, (req, res) => { res.sendFile(path.join(__dirname, 'views', 'admin-dashboard.html')); });
-app.get('/admin/packages', requireLogin, (req, res) => { res.sendFile(path.join(__dirname, 'views', 'package-management.html')); });
+app.get('/admin/dashboard', requireLogin, (req, res) => { res.sendFile(path.join(__dirname, 'public', 'admin-dashboard.html')); });
+app.get('/admin/packages', requireLogin, (req, res) => { res.sendFile(path.join(__dirname, 'public', 'package-management.html')); });
 app.get('/admin/terms', requireLogin, (req, res) => { res.sendFile(path.join(__dirname, 'public', 'terms.html')); });
 
 
-server.listen(PORT, () => console.log(`Server is running at http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`Server is running at http://localhost:${PORT}`));

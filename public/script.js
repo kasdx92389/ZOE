@@ -33,48 +33,9 @@ document.addEventListener('DOMContentLoaded', () => {
     async function init() {
         await fetchDashboardData();
         addEventListeners();
-        initWebSocket(); // Initialize WebSocket connection
         renderOrderList(); 
         updateCustomerInfoVisibility();
         updateSummaries();
-    }
-
-    function initWebSocket() {
-        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${wsProtocol}//${window.location.host}`;
-        
-        const ws = new WebSocket(wsUrl);
-
-        ws.onopen = () => {
-            console.log('WebSocket connection established.');
-        };
-
-        ws.onmessage = (event) => {
-            try {
-                const message = JSON.parse(event.data);
-                if (message.event === 'packages_updated') {
-                    console.log('Package update received from server. Refreshing data...');
-                    const selectedGame = gameSelector.value;
-                    fetchDashboardData().then(() => {
-                        if (selectedGame) {
-                            populatePackageSelector(selectedGame);
-                        }
-                    });
-                }
-            } catch (e) {
-                console.error('Error parsing WebSocket message:', e);
-            }
-        };
-
-        ws.onclose = () => {
-            console.log('WebSocket connection closed. Attempting to reconnect in 5 seconds...');
-            setTimeout(initWebSocket, 5000);
-        };
-
-        ws.onerror = (error) => {
-            console.error('WebSocket error:', error);
-            ws.close();
-        };
     }
 
     async function fetchDashboardData() {
@@ -92,25 +53,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- DYNAMIC POPULATION ---
     function populateGameSelector(games) {
-        const currentSelectedGame = gameSelector.value;
-        gameSelector.innerHTML = '<option value="">-- กรุณาเลือกเกม --</option>';
         games.forEach(game => {
             const option = document.createElement('option');
             option.value = game;
             option.textContent = game;
             gameSelector.appendChild(option);
         });
-        if (games.includes(currentSelectedGame)) {
-            gameSelector.value = currentSelectedGame;
-        }
     }
 
     function populatePackageSelector(selectedGame) {
-        const filteredPackages = allPackages.filter(p => p.game_association === selectedGame && p.is_active);
-        
-        const currentSelectedPackage = packageSelector.value;
+        const filteredPackages = allPackages.filter(p => p.game_association === selectedGame);
         packageSelector.innerHTML = '<option value="">-- กรุณาเลือกแพ็กเกจ --</option>';
-
         if (filteredPackages.length > 0) {
             filteredPackages.forEach(pkg => {
                 const option = document.createElement('option');
@@ -120,13 +73,8 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             packageSelector.disabled = false;
         } else {
-            packageSelector.innerHTML = '<option value="">-- ไม่มีแพ็กเกจ (หรือปิดใช้งาน) --</option>';
+            packageSelector.innerHTML = '<option value="">-- ไม่มีแพ็กเกจ --</option>';
             packageSelector.disabled = true;
-        }
-        
-        const packageIds = filteredPackages.map(p => p.id.toString());
-        if (packageIds.includes(currentSelectedPackage)) {
-            packageSelector.value = currentSelectedPackage;
         }
     }
     
