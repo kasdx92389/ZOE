@@ -3,13 +3,12 @@ const path = require('path');
 const session = require('express-session');
 const bcrypt = require('bcrypt');
 const fs = require('fs');
-
 const redis = require('redis');
 const RedisStore = require("connect-redis")(session);
 
-const db = require('./database.js'); 
+const db = require('./database.js');
 const app = express();
-app.use(express.json()); 
+app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
@@ -36,7 +35,6 @@ try {
 
 // --- Middleware ---
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
 
 // --- Redis Session Store ---
 const redisClient = redis.createClient({
@@ -49,88 +47,56 @@ app.use(session({
     secret: 'a-very-secret-key-for-your-session-12345',
     resave: false,
     saveUninitialized: false,
-    cookie: { 
+    cookie: {
         maxAge: 30 * 24 * 60 * 60 * 1000,
-        secure: process.env.NODE_ENV === 'production', 
-        httpOnly: true 
+        secure: process.env.NODE_ENV === 'production',
+        httpOnly: true
     }
 }));
 
+// --- Middleware สำหรับตรวจสอบการล็อกอิน ---
 const requireLogin = (req, res, next) => {
     if (req.session.userId) {
-        next();
+        next(); // ถ้าล็อกอินแล้ว ให้ไปต่อ
     } else {
-        res.redirect('/');
+        res.redirect('/'); // ถ้ายังไม่ล็อกอิน ให้กลับไปหน้าแรก
     }
 };
 
-// --- Routes ---
 
-// Root route for DEBUGGING
-app.get('/', (req, res) => {
-    console.log('--- Received request for root / ---');
+// --- ROUTING ---
 
+// 1. ตรวจสอบการล็อกอินก่อนเข้าถึงหน้า /admin/* ใดๆ
+app.use('/admin', requireLogin);
+
+// 2. ถ้าล็อกอินแล้วเข้าหน้าแรก ให้ redirect ไป dashboard
+app.get('/', (req, res, next) => {
     if (req.session.userId) {
-        console.log('User is logged in. Redirecting to dashboard.');
-        return res.redirect('/admin/dashboard');
+        return res.redirect('/admin/homepage.html');
     }
-
-    const filePath = path.join(__dirname, 'admin-login.html');
-    console.log(`[DEBUG] Full path to file is: ${filePath}`);
-
-    // ตรวจสอบว่าไฟล์มีอยู่จริงหรือไม่ก่อนส่ง
-    if (fs.existsSync(filePath)) {
-        console.log('[DEBUG] File exists. Attempting to send.');
-        res.sendFile(filePath, (err) => {
-            if (err) {
-                console.error('[DEBUG] Error occurred while sending file:', err);
-                res.status(500).send('Error: Could not send file.');
-            } else {
-                console.log('[DEBUG] File sent successfully.');
-            }
-        });
-    } else {
-        console.error(`[DEBUG] CRITICAL: File NOT FOUND at path: ${filePath}`);
-        res.status(404).send(`404 Not Found: ${filePath}`);
-    }
+    next();
 });
 
-// Register route
-app.get('/register', (req, res) => { 
-    res.sendFile(path.join(__dirname, 'admin-register.html')); 
-});
+// 3. ให้บริการไฟล์ทั้งหมดจากโฟลเดอร์ public
+//    (เช่น /index.html, /admin/package-management.html)
+app.use(express.static(path.join(__dirname, 'public')));
 
-// Admin Routes
-app.get('/admin/homepage', requireLogin, (req, res) => { 
-    res.redirect('/admin/dashboard'); 
-});
-app.get('/admin/dashboard', requireLogin, (req, res) => { 
-    res.sendFile(path.join(__dirname, 'homepage.html'));
-});
-app.get('/admin/packages', requireLogin, (req, res) => { 
-    res.sendFile(path.join(__dirname, 'package-management.html')); 
-});
 
-// Terms route
-app.get('/terms', (req, res) => {
-    res.sendFile(path.join(__dirname, 'terms.html'));
-});
-
-// --- Auth Logic ---
+// --- AUTH LOGIC ---
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
     const userHash = users[username];
     if (userHash && await bcrypt.compare(password, userHash)) {
         req.session.userId = username;
-        return res.redirect('/admin/dashboard');
+        return res.redirect('/admin/homepage.html');
     }
     res.redirect(`/?error=${encodeURIComponent('Username หรือ Password ไม่ถูกต้อง')}`);
 });
 
 app.post('/register', async (req, res) => {
     const { username, password, master_code } = req.body;
-    if (master_code !== MASTER_CODE) return res.redirect(`/register?error=${encodeURIComponent('รหัสโค้ดลับไม่ถูกต้อง.')}`);
-    if (users[username]) return res.redirect(`/register?error=${encodeURIComponent('Username นี้มีผู้ใช้งานแล้ว.')}`);
+    if (master_code !== MASTER_CODE) return res.redirect(`/register.html?error=${encodeURIComponent('รหัสโค้ดลับไม่ถูกต้อง.')}`);
+    if (users[username]) return res.redirect(`/register.html?error=${encodeURIComponent('Username นี้มีผู้ใช้งานแล้ว.')}`);
     users[username] = await bcrypt.hash(password, saltRounds);
     fs.writeFileSync(USERS_FILE_PATH, JSON.stringify(users, null, 2));
     res.redirect(`/?success=${encodeURIComponent('สร้างบัญชีสำเร็จ! กรุณาล็อกอิน')}`);
@@ -145,8 +111,10 @@ app.get('/logout', (req, res) => {
     });
 });
 
-// --- API Endpoints ---
-app.get('/api/packages', requireLogin, (req, res) => {
+// --- API Endpoints (ต้องล็อกอินทั้งหมด) ---
+app.use('/api', requireLogin);
+
+app.get('/api/packages', (req, res) => {
     try {
         const stmt = db.prepare('SELECT * FROM packages ORDER BY sort_order');
         const packages = stmt.all();
@@ -156,7 +124,7 @@ app.get('/api/packages', requireLogin, (req, res) => {
     }
 });
 
-app.post('/api/packages', requireLogin, (req, res) => {
+app.post('/api/packages', (req, res) => {
     const { name, price, product_code, type, channel, game_association, originalId } = req.body;
     const transaction = db.transaction(() => {
         let newSortOrder;
@@ -189,7 +157,7 @@ app.post('/api/packages', requireLogin, (req, res) => {
     }
 });
 
-app.post('/api/packages/order', requireLogin, (req, res) => {
+app.post('/api/packages/order', (req, res) => {
     const { order } = req.body;
     if (!Array.isArray(order)) return res.status(400).json({ error: 'Invalid order data' });
     const updateStmt = db.prepare('UPDATE packages SET sort_order = ? WHERE id = ?');
@@ -205,7 +173,7 @@ app.post('/api/packages/order', requireLogin, (req, res) => {
     }
 });
 
-app.put('/api/packages/:id', requireLogin, (req, res) => {
+app.put('/api/packages/:id', (req, res) => {
     try {
         const { id } = req.params;
         const getStmt = db.prepare('SELECT * FROM packages WHERE id = ?');
@@ -227,7 +195,7 @@ app.put('/api/packages/:id', requireLogin, (req, res) => {
     }
 });
 
-app.delete('/api/packages/:id', requireLogin, (req, res) => {
+app.delete('/api/packages/:id', (req, res) => {
     try {
         const stmt = db.prepare('DELETE FROM packages WHERE id = ?');
         stmt.run(req.params.id);
@@ -237,7 +205,7 @@ app.delete('/api/packages/:id', requireLogin, (req, res) => {
     }
 });
 
-app.post('/api/packages/bulk-actions', requireLogin, (req, res) => {
+app.post('/api/packages/bulk-actions', (req, res) => {
     const { action, ids, status, priceUpdates } = req.body;
     if (!action || !Array.isArray(ids) || ids.length === 0) {
         return res.status(400).json({ error: 'Invalid request' });
@@ -274,7 +242,7 @@ app.post('/api/packages/bulk-actions', requireLogin, (req, res) => {
     }
 });
 
-app.get('/api/games/order', requireLogin, (req, res) => {
+app.get('/api/games/order', (req, res) => {
     let orderedGames = [];
     try {
         if (fs.existsSync(GAME_ORDER_FILE_PATH)) {
@@ -289,7 +257,7 @@ app.get('/api/games/order', requireLogin, (req, res) => {
     res.json(finalGameOrder);
 });
 
-app.post('/api/games/order', requireLogin, (req, res) => {
+app.post('/api/games/order', (req, res) => {
     try {
         const { gameOrder } = req.body;
         if (!Array.isArray(gameOrder)) {
@@ -302,7 +270,7 @@ app.post('/api/games/order', requireLogin, (req, res) => {
     }
 });
 
-app.get('/api/dashboard-data', requireLogin, (req, res) => {
+app.get('/api/dashboard-data', (req, res) => {
     try {
         let orderedGames = [];
         try {
