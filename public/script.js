@@ -62,7 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function populatePackageSelector(selectedGame) {
-        const filteredPackages = allPackages.filter(p => p.game_association === selectedGame);
+            const filteredPackages = allPackages.filter(p => p.game_association === selectedGame && p.is_active === 1);
         packageSelector.innerHTML = '<option value="">-- กรุณาเลือกแพ็กเกจ --</option>';
         if (filteredPackages.length > 0) {
             filteredPackages.forEach(pkg => {
