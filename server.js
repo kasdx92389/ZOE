@@ -36,7 +36,6 @@ try {
 
 // --- Middleware ---
 app.use(express.urlencoded({ extended: true }));
-// ให้บริการไฟล์ CSS/JS จากโฟลเดอร์ public
 app.use(express.static(path.join(__dirname, 'public')));
 
 // --- Redis Session Store ---
@@ -65,14 +64,35 @@ const requireLogin = (req, res, next) => {
     }
 };
 
-// --- Routes (แก้ไขตำแหน่งไฟล์ HTML ทั้งหมด) ---
+// --- Routes ---
 
-// Root route
-app.get('/', (req, res) => { 
+// Root route for DEBUGGING
+app.get('/', (req, res) => {
+    console.log('--- Received request for root / ---');
+
     if (req.session.userId) {
+        console.log('User is logged in. Redirecting to dashboard.');
         return res.redirect('/admin/dashboard');
     }
-    res.sendFile(path.join(__dirname, 'admin-login.html')); 
+
+    const filePath = path.join(__dirname, 'admin-login.html');
+    console.log(`[DEBUG] Full path to file is: ${filePath}`);
+
+    // ตรวจสอบว่าไฟล์มีอยู่จริงหรือไม่ก่อนส่ง
+    if (fs.existsSync(filePath)) {
+        console.log('[DEBUG] File exists. Attempting to send.');
+        res.sendFile(filePath, (err) => {
+            if (err) {
+                console.error('[DEBUG] Error occurred while sending file:', err);
+                res.status(500).send('Error: Could not send file.');
+            } else {
+                console.log('[DEBUG] File sent successfully.');
+            }
+        });
+    } else {
+        console.error(`[DEBUG] CRITICAL: File NOT FOUND at path: ${filePath}`);
+        res.status(404).send(`404 Not Found: ${filePath}`);
+    }
 });
 
 // Register route
@@ -85,7 +105,7 @@ app.get('/admin/homepage', requireLogin, (req, res) => {
     res.redirect('/admin/dashboard'); 
 });
 app.get('/admin/dashboard', requireLogin, (req, res) => { 
-    res.sendFile(path.join(__dirname, 'admin-dashboard.html')); // สมมติว่าไฟล์นี้อยู่ใน root
+    res.sendFile(path.join(__dirname, 'homepage.html'));
 });
 app.get('/admin/packages', requireLogin, (req, res) => { 
     res.sendFile(path.join(__dirname, 'package-management.html')); 
@@ -95,7 +115,6 @@ app.get('/admin/packages', requireLogin, (req, res) => {
 app.get('/terms', (req, res) => {
     res.sendFile(path.join(__dirname, 'terms.html'));
 });
-
 
 // --- Auth Logic ---
 app.post('/login', async (req, res) => {
@@ -126,7 +145,7 @@ app.get('/logout', (req, res) => {
     });
 });
 
-// --- API Endpoints (ไม่มีการเปลี่ยนแปลง) ---
+// --- API Endpoints ---
 app.get('/api/packages', requireLogin, (req, res) => {
     try {
         const stmt = db.prepare('SELECT * FROM packages ORDER BY sort_order');
