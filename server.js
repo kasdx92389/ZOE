@@ -4,9 +4,8 @@ const session = require('express-session');
 const bcrypt = require('bcrypt');
 const fs = require('fs');
 
-// 1. Imports
 const redis = require('redis');
-const RedisStore = require("connect-redis")(session); // ใช้ (session) กับเวอร์ชัน 6
+const RedisStore = require("connect-redis")(session);
 
 const db = require('./database.js'); 
 const app = express();
@@ -22,7 +21,7 @@ const GAME_ORDER_FILE_PATH = path.join(__dirname, 'game_order.json');
 const MASTER_CODE = 'KESU-SECRET-2025';
 const saltRounds = 10;
 
-// --- ระบบจัดเก็บข้อมูลผู้ใช้ (อ่านจากไฟล์) ---
+// --- ระบบจัดเก็บข้อมูลผู้ใช้ ---
 let users = {};
 try {
     const data = fs.readFileSync(USERS_FILE_PATH, 'utf8');
@@ -37,22 +36,22 @@ try {
 
 // --- Middleware ---
 app.use(express.urlencoded({ extended: true }));
+// ให้บริการไฟล์ CSS/JS จากโฟลเดอร์ public
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 2. Initialize Redis Client
+// --- Redis Session Store ---
 const redisClient = redis.createClient({
     url: process.env.REDIS_URL || 'redis://localhost:6379'
 });
 redisClient.connect().catch(console.error);
 
-// 3. Configure Session with Redis Store
 app.use(session({
-    store: new RedisStore({ client: redisClient }), // การกำหนดค่าสำหรับเวอร์ชัน 6
+    store: new RedisStore({ client: redisClient }),
     secret: 'a-very-secret-key-for-your-session-12345',
     resave: false,
     saveUninitialized: false,
     cookie: { 
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        maxAge: 30 * 24 * 60 * 60 * 1000,
         secure: process.env.NODE_ENV === 'production', 
         httpOnly: true 
     }
@@ -66,15 +65,39 @@ const requireLogin = (req, res, next) => {
     }
 };
 
-// --- Auth Routes ---
+// --- Routes (แก้ไขตำแหน่งไฟล์ HTML ทั้งหมด) ---
+
+// Root route
 app.get('/', (req, res) => { 
     if (req.session.userId) {
         return res.redirect('/admin/dashboard');
     }
     res.sendFile(path.join(__dirname, 'admin-login.html')); 
 });
-app.get('/register', (req, res) => { res.sendFile(path.join(__dirname, 'admin-register.html')); });
 
+// Register route
+app.get('/register', (req, res) => { 
+    res.sendFile(path.join(__dirname, 'admin-register.html')); 
+});
+
+// Admin Routes
+app.get('/admin/homepage', requireLogin, (req, res) => { 
+    res.redirect('/admin/dashboard'); 
+});
+app.get('/admin/dashboard', requireLogin, (req, res) => { 
+    res.sendFile(path.join(__dirname, 'admin-dashboard.html')); // สมมติว่าไฟล์นี้อยู่ใน root
+});
+app.get('/admin/packages', requireLogin, (req, res) => { 
+    res.sendFile(path.join(__dirname, 'package-management.html')); 
+});
+
+// Terms route
+app.get('/terms', (req, res) => {
+    res.sendFile(path.join(__dirname, 'terms.html'));
+});
+
+
+// --- Auth Logic ---
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
     const userHash = users[username];
@@ -103,7 +126,7 @@ app.get('/logout', (req, res) => {
     });
 });
 
-// --- API Endpoints ---
+// --- API Endpoints (ไม่มีการเปลี่ยนแปลง) ---
 app.get('/api/packages', requireLogin, (req, res) => {
     try {
         const stmt = db.prepare('SELECT * FROM packages ORDER BY sort_order');
@@ -169,10 +192,10 @@ app.put('/api/packages/:id', requireLogin, (req, res) => {
         const getStmt = db.prepare('SELECT * FROM packages WHERE id = ?');
         const existingPackage = getStmt.get(id);
         if (!existingPackage) return res.status(404).json({ error: 'Package not found' });
-
+        
         const updatedPackage = { ...existingPackage, ...req.body };
         const { name, price, product_code, type, channel, game_association, is_active } = updatedPackage;
-
+        
         const updateStmt = db.prepare(`
             UPDATE packages 
             SET name = ?, price = ?, product_code = ?, type = ?, channel = ?, game_association = ?, is_active = ? 
@@ -243,7 +266,7 @@ app.get('/api/games/order', requireLogin, (req, res) => {
     const allDbGames = db.prepare("SELECT DISTINCT game_association FROM packages").all().map(g => g.game_association);
     const newGames = allDbGames.filter(g => !orderedGames.includes(g)).sort();
     const finalGameOrder = [...orderedGames, ...newGames];
-
+    
     res.json(finalGameOrder);
 });
 
@@ -272,13 +295,13 @@ app.get('/api/dashboard-data', requireLogin, (req, res) => {
         const allDbGames = db.prepare("SELECT DISTINCT game_association FROM packages").all().map(g => g.game_association);
         const newGames = allDbGames.filter(g => !orderedGames.includes(g)).sort();
         let sortedGames = [...orderedGames, ...newGames];
-
+        
         const caseClauses = sortedGames.map((game, index) => `WHEN ? THEN ${index}`).join(' ');
         const finalOrderBy = `ORDER BY CASE game_association ${caseClauses.length > 0 ? caseClauses : ''} ELSE 999 END, sort_order`;
-
+        
         const packagesStmt = db.prepare(`SELECT * FROM packages ${finalOrderBy}`);
         const packages = packagesStmt.all(...sortedGames);
-
+        
         const activeGames = db.prepare("SELECT DISTINCT game_association FROM packages WHERE is_active = 1").all().map(g => g.game_association);
         const finalSortedActiveGames = sortedGames.filter(game => activeGames.includes(game));
 
@@ -289,13 +312,5 @@ app.get('/api/dashboard-data', requireLogin, (req, res) => {
     }
 });
 
-// --- Admin Routes ---
-app.get('/admin/homepage', requireLogin, (req, res) => { 
-    res.redirect('/admin/dashboard'); 
-});
-app.get('/admin/dashboard', requireLogin, (req, res) => { res.sendFile(path.join(__dirname, 'public', 'admin-dashboard.html')); });
-app.get('/admin/packages', requireLogin, (req, res) => { res.sendFile(path.join(__dirname, 'public', 'package-management.html')); });
-app.get('/terms', (req, res) => {res.sendFile(path.join(__dirname, 'public', 'terms.html'));
-});
 
 app.listen(PORT, () => console.log(`Server is running at http://localhost:${PORT}`));
