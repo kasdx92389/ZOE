@@ -214,13 +214,13 @@ document.addEventListener('DOMContentLoaded', () => {
         let teamSummaryParts = [];
         const gameForOrder = orderItems[0].game;
         let customerInfoBlock = [];
-        if (uidInput.value) customerInfoBlock.push(`${gameForOrder === 'ROV' ? 'Open ID' : 'UID'}: ${uidInput.value}`);
+        if (uidInput.value) customerInfoBlock.push(`${gameForOrder === 'ROV' ? 'OPEN/ID' : 'UID'}: ${uidInput.value}`);
         if (serverInput.value) customerInfoBlock.push(`Server: ${serverInput.value}`);
         if (idEmailInput.value) customerInfoBlock.push(`ID/Email: ${idEmailInput.value}`);
         if (passwordInput.value) customerInfoBlock.push(`Password: ${passwordInput.value}`);
         if (inGameNameInput.value) customerInfoBlock.push(`ชื่อในเกม: ${inGameNameInput.value}`);
         if (loginMethodInput.value) customerInfoBlock.push(`ช่องทางล็อกอิน: ${loginMethodInput.value}`);
-        if (riotInput.value) customerInfoBlock.push(`RIOT ID: ${riotInput.value}`);
+        if (riotInput.value) customerInfoBlock.push(`RIOT/ID: ${riotInput.value}`);
         
         if (customerInfoBlock.length > 0) {
             teamSummaryParts.push(gameForOrder);
