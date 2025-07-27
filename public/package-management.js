@@ -167,7 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const populateGameFilter = (games) => {
         const currentSelection = gameFilter.value;
-        gameFilter.innerHTML = '<option value="">All Games</option>';
+        gameFilter.innerHTML = '<option value="">##</option>';
         games.forEach(game => {
             const option = document.createElement('option');
             option.value = game;

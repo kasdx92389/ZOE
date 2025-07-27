@@ -27,6 +27,11 @@ body {
     font-size: 16px;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+
+    /* --- เพิ่มเข้ามาใหม่เพื่อการตัดคำภาษาไทย --- */
+    word-break: thai;
+    overflow-wrap: break-word;
+    line-break: strict;
 }
 
 /* --- Main Container --- */
@@ -171,14 +176,32 @@ footer p {
     header h1 { font-size: 2.25rem; }
     h2 { font-size: 1.6rem; }
 }
+
+/* --- ปรับปรุงใหม่สำหรับหน้าจอมือถือ --- */
 @media (max-width: 480px) {
-    body { font-size: 15px; }
+    body { 
+        font-size: 14.5px; /* ปรับขนาดตัวอักษรพื้นฐานให้เล็กลงเล็กน้อย */
+    }
     .container {
         margin: 0;
         border-radius: 0;
         border-left: none;
         border-right: none;
     }
-    header, .terms-content { padding: 25px; }
-    header h1 { font-size: 2rem; }
+    header, .terms-content { 
+        padding: 25px 20px; /* ลด padding ด้านข้างเล็กน้อย */
+    }
+    header h1 { 
+        font-size: 1.8rem; /* ลดขนาดหัวข้อหลัก */
+    }
+    h2 {
+        font-size: 1.5rem; /* ลดขนาดหัวข้อรอง */
+    }
+    h3 {
+        font-size: 1.1rem; /* ลดขนาดหัวข้อย่อย */
+        margin-top: 2rem;
+    }
+    p, li {
+        line-height: 1.8; /* ลดความสูงระหว่างบรรทัดลงเล็กน้อย */
+    }
 }
