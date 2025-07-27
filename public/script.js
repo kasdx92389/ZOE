@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function populatePackageSelector(selectedGame) {
             const filteredPackages = allPackages.filter(p => p.game_association === selectedGame && p.is_active === 1);
-        packageSelector.innerHTML = '<option value="">-- กรุณาเลือกแพ็กเกจ --</option>';
+        packageSelector.innerHTML = '<option value="">-- เลือกแพ็กเกจ --</option>';
         if (filteredPackages.length > 0) {
             filteredPackages.forEach(pkg => {
                 const option = document.createElement('option');
@@ -113,7 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
         event.preventDefault();
         const selectedPackageId = packageSelector.value;
         if (!selectedPackageId) {
-            alert("กรุณาเลือกแพ็กเกจ");
+            alert("เลือกแพ็กเกจ");
             return;
         }
         

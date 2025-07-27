@@ -85,7 +85,7 @@ app.post('/register', async (req, res) => {
     if (users[username]) return res.redirect(`/register?error=${encodeURIComponent('Username นี้มีผู้ใช้งานแล้ว.')}`);
     users[username] = await bcrypt.hash(password, saltRounds);
     fs.writeFileSync(USERS_FILE_PATH, JSON.stringify(users, null, 2));
-    res.redirect(`/?success=${encodeURIComponent('สร้างบัญชีสำเร็จ! กรุณาล็อกอิน')}`);
+    res.redirect(`/?success=${encodeURIComponent('สร้างบัญชีสำเร็จ!')}`);
 });
 
 app.get('/logout', (req, res) => {
