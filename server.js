@@ -65,7 +65,17 @@ const requireLogin = (req, res, next) => {
 };
 
 // --- Auth Routes ---
-app.get('/', (req, res) => { res.sendFile(path.join(__dirname, 'admin-login.html')); });
+// --- ✨ MODIFIED: Redirect logged-in users from the root path ---
+app.get('/', (req, res) => {
+    if (req.session.userId) {
+        // If the user is already logged in, redirect them to the dashboard
+        res.redirect('/admin/dashboard');
+    } else {
+        // Otherwise, show the login page
+        res.sendFile(path.join(__dirname, 'admin-login.html'));
+    }
+});
+
 app.get('/register', (req, res) => { res.sendFile(path.join(__dirname, 'admin-register.html')); });
 
 app.post('/login', async (req, res) => {
