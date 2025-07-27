@@ -218,7 +218,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (serverInput.value) customerInfoBlock.push(`Server: ${serverInput.value}`);
         if (idEmailInput.value) customerInfoBlock.push(`ID/Email: ${idEmailInput.value}`);
         if (passwordInput.value) customerInfoBlock.push(`Password: ${passwordInput.value}`);
-        if (inGameNameInput.value) customerInfoBlock.push(`ชื่อในเกม: ${inGameNameInput.value}`);
+        if (inGameNameInput.value) customerInfoBlock.push(`In-game Name: ${inGameNameInput.value}`);
         if (loginMethodInput.value) customerInfoBlock.push(`ช่องทางล็อกอิน: ${loginMethodInput.value}`);
         if (riotInput.value) customerInfoBlock.push(`RIOT/ID: ${riotInput.value}`);
         
