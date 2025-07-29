@@ -88,6 +88,61 @@
             </div>
         </div>
     </div>
+    
+    <div id="bulk-edit-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Bulk Edit Packages</h2>
+                <button class="close-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-subtitle">กรอกเฉพาะช่องที่ต้องการแก้ไขสำหรับทุกรายการที่เลือก ช่องที่เว้นว่างไว้จะไม่มีการเปลี่ยนแปลง</p>
+                <form id="bulk-edit-form">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="bulk-price">Price</label>
+                            <input type="number" id="bulk-price" step="0.01" placeholder="เว้นว่างเพื่อคงค่าเดิม">
+                        </div>
+                        <div class="form-group">
+                            <label for="bulk-game_association">Game</label>
+                            <input type="text" id="bulk-game_association" placeholder="เว้นว่างเพื่อคงค่าเดิม">
+                        </div>
+                        <div class="form-group">
+                            <label for="bulk-type">Type</label>
+                            <select id="bulk-type">
+                                <option value="">-- คงค่าเดิม --</option>
+                                <option value="UID">UID</option>
+                                <option value="ID-PASS">ID-PASS</option>
+                                <option value="RIOT#">RIOT#</option>
+                                <option value="OPEN/ID">OPEN/ID</option>
+                                <option value="CODE">CODE</option>
+                                <option value="QRCODE">QRCODE</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="bulk-channel">Channel</label>
+                             <select id="bulk-channel">
+                                <option value="">-- คงค่าเดิม --</option>
+                                <option value="RAZERGOLD">RAZERGOLD</option>
+                                <option value="YOUTRIP">YOUTRIP</option>
+                                <option value="RICHMAN">RICHMAN</option>
+                                <option value="24BUYM">24BUYM</option>
+                                <option value="WEPAY">WEPAY</option>
+                                <option value="ITUNES">ITUNES</option>
+                                <option value="RAZERSILVER">RAZERSILVER</option>
+                            </select>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="submit" form="bulk-edit-form" class="btn btn-primary">Apply Changes</button>
+            </div>
+        </div>
+    </div>
+
 
     <div id="bulk-status-modal" class="modal-overlay hidden">
         <div class="modal-content">
@@ -141,7 +196,7 @@
                 <input type="search" id="filter-input" placeholder="Search packages...">
             </div>
             <div class="action-group">
-                <button id="reorder-all-btn" class="btn">Re-Arrange</button>
+                <button id="reorder-all-btn" class="btn">Arrange</button>
                 <button id="add-new-btn" class="btn btn-primary">
                     <span>Add New</span>
                 </button>
@@ -151,6 +206,7 @@
             <div id="bulk-actions-bar" class="bulk-actions-bar hidden">
                 <span id="selection-count"></span>
                 <div class="bulk-actions-buttons">
+                    <button id="bulk-edit-btn" class="btn">Bulk Edit</button>
                     <button id="bulk-price-btn" class="btn">Edit Prices</button>
                     <button id="bulk-status-btn" class="btn">Change Status</button>
                     <button id="bulk-delete-btn" class="btn btn-danger">Delete</button>

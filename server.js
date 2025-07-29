@@ -200,7 +200,8 @@ app.delete('/api/packages/:id', requireLogin, (req, res) => {
 });
 
 app.post('/api/packages/bulk-actions', requireLogin, (req, res) => {
-    const { action, ids, status, priceUpdates } = req.body;
+    // UPDATED: Destructure 'updates' from req.body
+    const { action, ids, status, priceUpdates, updates } = req.body;
     if (!action || !Array.isArray(ids) || ids.length === 0) {
         return res.status(400).json({ error: 'Invalid request' });
     }
@@ -222,6 +223,27 @@ app.post('/api/packages/bulk-actions', requireLogin, (req, res) => {
                     updateStmt.run(update.newPrice, update.id);
                 }
                 return { message: `${priceUpdates.length} package prices updated.` };
+            
+            // +++ NEW CASE FOR BULK EDIT +++
+            case 'bulkEdit':
+                if (typeof updates !== 'object' || updates === null || Object.keys(updates).length === 0) {
+                    throw new Error('Invalid update data provided for bulk edit.');
+                }
+
+                const allowedFields = ['price', 'type', 'channel', 'game_association'];
+                const fieldsToUpdate = Object.keys(updates).filter(key => allowedFields.includes(key));
+
+                if (fieldsToUpdate.length === 0) {
+                    throw new Error('No valid fields to update in bulk edit.');
+                }
+
+                const setClauses = fieldsToUpdate.map(key => `${key} = ?`).join(', ');
+                const values = fieldsToUpdate.map(key => updates[key]);
+
+                const bulkUpdateStmt = db.prepare(`UPDATE packages SET ${setClauses} WHERE id IN (${placeholders})`);
+                bulkUpdateStmt.run(...values, ...ids);
+                return { message: `${ids.length} packages have been updated.` };
+            
             default:
                 throw new Error('Invalid action');
         }
@@ -235,6 +257,7 @@ app.post('/api/packages/bulk-actions', requireLogin, (req, res) => {
         res.status(500).json({ error: 'Failed to perform bulk action', details: error.message });
     }
 });
+
 
 app.get('/api/games/order', requireLogin, (req, res) => {
     let orderedGames = [];

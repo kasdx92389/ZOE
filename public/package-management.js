@@ -37,6 +37,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const setActiveBtn = document.getElementById('set-active-btn');
     const setInactiveBtn = document.getElementById('set-inactive-btn');
 
+    // ++ NEW: Bulk Edit Modal Elements
+    const bulkEditBtn = document.getElementById('bulk-edit-btn');
+    const bulkEditModal = document.getElementById('bulk-edit-modal');
+    const bulkEditForm = document.getElementById('bulk-edit-form');
+
+
     // Order Modal
     const reorderAllBtn = document.getElementById('reorder-all-btn');
     const orderModal = document.getElementById('order-modal');
@@ -76,28 +82,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (totalPages <= 1) return;
 
-        const prevButton = document.createElement('button');
-        prevButton.textContent = '‹ Prev';
-        prevButton.classList.add('pagination-btn');
-        prevButton.disabled = currentPage === 1;
-        prevButton.addEventListener('click', () => { if (currentPage > 1) { currentPage--; renderTable(filteredPackages); } });
-        paginationControls.appendChild(prevButton);
+        const createButton = (text, page, isDisabled = false, isActive = false) => {
+            const button = document.createElement('button');
+            button.textContent = text;
+            button.classList.add('pagination-btn');
+            if (isDisabled) button.disabled = true;
+            if (isActive) button.classList.add('active');
+            button.addEventListener('click', () => {
+                currentPage = page;
+                renderTable(filteredPackages);
+            });
+            return button;
+        };
+        
+        const createEllipsis = () => {
+            const span = document.createElement('span');
+            span.textContent = '...';
+            span.className = 'pagination-ellipsis';
+            return span;
+        };
 
-        for (let i = 1; i <= totalPages; i++) {
-            const pageButton = document.createElement('button');
-            pageButton.textContent = i;
-            pageButton.classList.add('pagination-btn');
-            if (i === currentPage) pageButton.classList.add('active');
-            pageButton.addEventListener('click', () => { currentPage = i; renderTable(filteredPackages); });
-            paginationControls.appendChild(pageButton);
-        }
+        paginationControls.appendChild(createButton('‹ Prev', currentPage - 1, currentPage === 1));
 
-        const nextButton = document.createElement('button');
-        nextButton.textContent = 'Next ›';
-        nextButton.classList.add('pagination-btn');
-        nextButton.disabled = currentPage === totalPages;
-        nextButton.addEventListener('click', () => { if (currentPage < totalPages) { currentPage++; renderTable(filteredPackages); } });
-        paginationControls.appendChild(nextButton);
+        const pageNumbersToShow = new Set();
+        pageNumbersToShow.add(1);
+        pageNumbersToShow.add(totalPages);
+        pageNumbersToShow.add(currentPage);
+        if (currentPage > 1) pageNumbersToShow.add(currentPage - 1);
+        if (currentPage < totalPages) pageNumbersToShow.add(currentPage + 1);
+
+        let lastPage = 0;
+        Array.from(pageNumbersToShow).sort((a, b) => a - b).forEach(page => {
+            if (page > lastPage + 1) {
+                paginationControls.appendChild(createEllipsis());
+            }
+            paginationControls.appendChild(createButton(page, page, false, page === currentPage));
+            lastPage = page;
+        });
+
+        paginationControls.appendChild(createButton('Next ›', currentPage + 1, currentPage === totalPages));
     };
 
     const renderTable = (packages) => {
@@ -162,6 +185,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const applyFiltersAndRender = () => {
         filteredPackages = getFilteredPackages();
+
+        const totalPages = Math.ceil(filteredPackages.length / itemsPerPage);
+        if (currentPage > totalPages && totalPages > 0) {
+            currentPage = totalPages;
+        }
+
         renderTable(filteredPackages);
     };
     
@@ -240,11 +269,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action, ...payload, ids })
             });
-            if (!response.ok) throw new Error('Bulk action failed');
+            if (!response.ok) {
+                 const errData = await response.json();
+                 throw new Error(errData.details || 'Bulk action failed');
+            }
             await fetchAndRenderPackages();
             showToast('Bulk action completed!', 'success');
         } catch (error) {
-            showToast('Error performing bulk action.', 'error');
+            showToast(`Error: ${error.message}`, 'error');
         }
     }
 
@@ -273,6 +305,32 @@ document.addEventListener('DOMContentLoaded', () => {
         hideModal(bulkPriceModal);
     };
     
+    // ++ NEW: Handler for Bulk Edit Form Submission
+    const handleBulkEditSubmit = async (event) => {
+        event.preventDefault();
+        
+        const updates = {};
+        
+        const price = document.getElementById('bulk-price').value;
+        const type = document.getElementById('bulk-type').value;
+        const channel = document.getElementById('bulk-channel').value;
+        const game = document.getElementById('bulk-game_association').value;
+
+        if (price.trim() !== '') updates.price = parseFloat(price);
+        if (type.trim() !== '') updates.type = type;
+        if (channel.trim() !== '') updates.channel = channel;
+        if (game.trim() !== '') updates.game_association = game.trim();
+
+        if (Object.keys(updates).length === 0) {
+            showToast('No changes were specified.', 'error');
+            return;
+        }
+
+        hideModal(bulkEditModal);
+        await handleBulkAction('bulkEdit', { updates });
+    };
+
+
     const openNewPackageModal = () => {
         packageForm.reset();
         packageIdInput.value = '';
@@ -537,6 +595,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         bulkPriceBtn.addEventListener('click', openBulkPriceModal);
         saveBulkPriceChangesBtn.addEventListener('click', handleSaveBulkPriceChanges);
+
+        // ++ NEW: Event listeners for Bulk Edit
+        bulkEditBtn.addEventListener('click', () => {
+            bulkEditForm.reset();
+            showModal(bulkEditModal);
+        });
+        bulkEditModal.querySelector('.close-btn').addEventListener('click', () => hideModal(bulkEditModal));
+        bulkEditForm.addEventListener('submit', handleBulkEditSubmit);
         
         reorderAllBtn.addEventListener('click', handleOpenOrderModal);
         orderModal.querySelector('.close-btn').addEventListener('click', () => hideModal(orderModal));
