@@ -241,6 +241,44 @@
             -moz-appearance: textfield;
         }
 
+        /* === Modal: จำกัดความสูง + เนื้อหาเลื่อนในตัว === */
+        .modal-overlay {
+            /* กันชิดขอบจอเวลาหน้าจอเล็ก ๆ */
+            padding: 24px;
+            box-sizing: border-box;
+        }
+
+        .modal-content {
+            /* กำหนดความสูงสูงสุดตามจอ เพื่อไม่ให้หัวโมดัลหลุดออกนอกวิวนะ */
+            max-height: 85vh;              /* ปรับเป็น 90vh ได้ตามชอบ */
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;              /* ให้ส่วน body เป็นคนสกรอลล์แทน */
+        }
+
+            .modal-body {
+            overflow: auto;                /* เนื้อหาภายในเลื่อนในตัวเอง */
+            min-height: 0;                 /* สำคัญกับ flex-child เพื่อยอมสั้น/ขยายได้ */
+        }
+
+        /* (แนะนำ) ให้ header/footer มองเห็นเสมอเวลาสกรอลล์รายการยาว */
+        .modal-header {
+            position: sticky;
+            top: 0;
+            background: var(--card-background);
+            z-index: 1;
+        }
+        .modal-footer {
+            position: sticky;
+            bottom: 0;
+            background: var(--card-background);
+            z-index: 1;
+        }
+
+        @media (max-width: 640px) {
+        .modal-content { width: 94vw; max-height: 90vh; }
+}
+
     </style>
 </head>
 <body>
@@ -302,7 +340,7 @@
         const packageChannels = ['RAZERGOLD', 'YOUTRIP', 'RICHMAN', '24BUYM', 'WEPAY', 'ITUNES', 'RAZERSILVER'];
 
         function generateSelectOptions(options, includeDefault = false) {
-            let html = includeDefault ? '<option value="">-- Do not change --</option>' : '';
+            let html = includeDefault ? '<option value="">- ไม่มีการเปลี่ยนแปลง -</option>' : '';
             html += options.map(opt => `<option value="${opt}">${opt}</option>`).join('');
             return html;
         }
