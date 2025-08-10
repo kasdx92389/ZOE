@@ -4,12 +4,10 @@ const session = require('express-session');
 const bcrypt = require('bcrypt');
 const fs = require('fs');
 
-// ADD: Import the new file-based session store
 const FileStore = require('session-file-store')(session);
 
 const db = require('./database.js'); 
 const app = express();
-app.use(express.json()); 
 
 const PORT = 3000;
 
@@ -17,11 +15,9 @@ const PORT = 3000;
 const USERS_FILE_PATH = path.join(__dirname, 'users.json');
 const GAME_ORDER_FILE_PATH = path.join(__dirname, 'game_order.json');
 
-
 // --- ค่าคงที่ ---
 const MASTER_CODE = 'KESU-SECRET-2025';
 const saltRounds = 10;
-
 
 // --- ระบบจัดเก็บข้อมูลผู้ใช้ (อ่านจากไฟล์) ---
 let users = {};
@@ -38,51 +34,54 @@ try {
 
 // --- Middleware ---
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json());
 
-// CHANGED: Use the new FileStore for session management
+// ✨ FIX STEP 1: เริ่มต้นระบบ Session ก่อนเป็นอันดับแรกเสมอ
 app.use(session({
     store: new FileStore({
-        path: './sessions', // Folder to store session files
-        logFn: function() {} // Disable verbose logging
+        path: './sessions',
+        logFn: function() {}
     }),
     secret: 'a-very-secret-key-for-your-session-12345',
     resave: false,
     saveUninitialized: false,
     cookie: { 
-        maxAge: 30 * 24 * 60 * 60 * 1000, // Set the 30-day cookie here
+        maxAge: 30 * 24 * 60 * 60 * 1000,
         secure: false, 
         httpOnly: true 
     }
 }));
 
+// ✨ FIX STEP 2: สร้าง Middleware ตรวจสอบการล็อกอิน
 const requireLogin = (req, res, next) => {
     if (req.session.userId) {
-        next();
+        next(); // ถ้าล็อกอินแล้ว ให้ไปต่อ
     } else {
-        res.redirect('/');
+        res.redirect('/'); // ถ้ายังไม่ล็อกอิน ให้กลับไปหน้าแรก
     }
 };
 
-// --- Auth Routes ---
-// --- ✨ MODIFIED: Redirect logged-in users from the root path ---
+// --- Public & Auth Routes (กำหนดเส้นทางทั้งหมดก่อน Static Files) ---
 app.get('/', (req, res) => {
     if (req.session.userId) {
-        // If the user is already logged in, redirect them to the dashboard
         res.redirect('/admin/dashboard');
     } else {
-        // Otherwise, show the login page
-        res.sendFile(path.join(__dirname, 'admin-login.html'));
+        res.sendFile(path.join(__dirname, 'public', 'admin-login.html'));
     }
 });
 
-app.get('/register', (req, res) => { res.sendFile(path.join(__dirname, 'admin-register.html')); });
+app.get('/register', (req, res) => { 
+    res.sendFile(path.join(__dirname, 'public', 'admin-register.html')); 
+});
+
+app.get('/terms', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'terms.html'));
+});
 
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
     const userHash = users[username];
     if (userHash && await bcrypt.compare(password, userHash)) {
-        // Set the user ID on the session. The cookie settings are now handled above.
         req.session.userId = username;
         return res.redirect('/admin/dashboard');
     }
@@ -107,18 +106,24 @@ app.get('/logout', (req, res) => {
     });
 });
 
-// --- API Endpoints ---
-app.get('/api/packages', requireLogin, (req, res) => {
-    try {
-        const stmt = db.prepare('SELECT * FROM packages ORDER BY sort_order');
-        const packages = stmt.all();
-        res.json(packages);
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to retrieve packages' });
+// --- Admin Routes (Protected by requireLogin) ---
+app.get('/admin/dashboard', requireLogin, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'admin-dashboard.html'));
+});
+
+app.get('/admin/packages', requireLogin, (req, res) => {
+    if (req.query.game) {
+        res.sendFile(path.join(__dirname, 'public', 'package-management.html'));
+    } else {
+        res.sendFile(path.join(__dirname, 'public', 'games-dashboard.html'));
     }
 });
 
-app.post('/api/packages', requireLogin, (req, res) => {
+// --- API Endpoints (Protected by requireLogin) ---
+// ... (All API routes will be implicitly protected because they come before express.static)
+app.use('/api', requireLogin); // ⭐️ ปกป้อง API ทุกเส้นทางด้วยบรรทัดนี้
+
+app.post('/api/packages', (req, res) => {
     const { name, price, product_code, type, channel, game_association, originalId } = req.body;
     const transaction = db.transaction(() => {
         let newSortOrder;
@@ -151,7 +156,8 @@ app.post('/api/packages', requireLogin, (req, res) => {
     }
 });
 
-app.post('/api/packages/order', requireLogin, (req, res) => {
+// ... (The rest of API routes do not need 'requireLogin' individually anymore)
+app.post('/api/packages/order', (req, res) => {
     const { order } = req.body;
     if (!Array.isArray(order)) return res.status(400).json({ error: 'Invalid order data' });
     const updateStmt = db.prepare('UPDATE packages SET sort_order = ? WHERE id = ?');
@@ -167,16 +173,24 @@ app.post('/api/packages/order', requireLogin, (req, res) => {
     }
 });
 
-app.put('/api/packages/:id', requireLogin, (req, res) => {
+app.put('/api/packages/:id', (req, res) => {
     try {
         const { id } = req.params;
         const getStmt = db.prepare('SELECT * FROM packages WHERE id = ?');
         const existingPackage = getStmt.get(id);
-        if (!existingPackage) return res.status(404).json({ error: 'Package not found' });
-        
-        const updatedPackage = { ...existingPackage, ...req.body };
-        const { name, price, product_code, type, channel, game_association, is_active } = updatedPackage;
-        
+        if (!existingPackage) {
+            return res.status(404).json({ error: 'Package not found' });
+        }
+        const dataToUpdate = { ...existingPackage, ...req.body };
+        const price = parseFloat(dataToUpdate.price);
+        if (isNaN(price)) {
+            return res.status(400).json({ error: 'Invalid input: Price must be a valid number.' });
+        }
+        dataToUpdate.price = price;
+        if (!dataToUpdate.name || !dataToUpdate.type || !dataToUpdate.channel || !dataToUpdate.game_association) {
+            return res.status(400).json({ error: 'Invalid input: Name, Type, Channel, and Game cannot be empty.' });
+        }
+        const { name, product_code, type, channel, game_association, is_active } = dataToUpdate;
         const updateStmt = db.prepare(`
             UPDATE packages 
             SET name = ?, price = ?, product_code = ?, type = ?, channel = ?, game_association = ?, is_active = ? 
@@ -185,27 +199,34 @@ app.put('/api/packages/:id', requireLogin, (req, res) => {
         updateStmt.run(name, price, product_code, type, channel, game_association, is_active, id);
         res.json({ message: 'Package updated successfully' });
     } catch (error) {
+        console.error("Error updating package:", error);
         res.status(500).json({ error: 'Failed to update package' });
     }
 });
 
-app.delete('/api/packages/:id', requireLogin, (req, res) => {
+app.delete('/api/packages/:id', (req, res) => {
     try {
         const stmt = db.prepare('DELETE FROM packages WHERE id = ?');
-        stmt.run(req.params.id);
+        const info = stmt.run(req.params.id);
+        if (info.changes === 0) {
+            return res.status(404).json({ error: 'Package not found, nothing to delete.' });
+        }
         res.json({ message: 'Package deleted successfully' });
     } catch (error) {
-        res.status(500).json({ error: 'Failed to delete package' });
+        console.error("Error deleting package:", error);
+        let errorMessage = 'Failed to delete package.';
+        if (error.code === 'SQLITE_CONSTRAINT') {
+            errorMessage = 'Cannot delete: This package is linked to other data.';
+        }
+        res.status(500).json({ error: errorMessage });
     }
 });
 
-app.post('/api/packages/bulk-actions', requireLogin, (req, res) => {
-    // UPDATED: Destructure 'updates' from req.body
-    const { action, ids, status, priceUpdates, updates } = req.body;
+app.post('/api/packages/bulk-actions', (req, res) => {
+    const { action, ids, status, priceUpdates, nameUpdates, codeUpdates, updates } = req.body;
     if (!action || !Array.isArray(ids) || ids.length === 0) {
         return res.status(400).json({ error: 'Invalid request' });
     }
-
     const runInTransaction = db.transaction(() => {
         const placeholders = ids.map(() => '?').join(',');
         switch (action) {
@@ -218,63 +239,70 @@ app.post('/api/packages/bulk-actions', requireLogin, (req, res) => {
                 return { message: `${ids.length} packages updated.` };
             case 'setIndividualPrices':
                 if (!Array.isArray(priceUpdates)) throw new Error('Invalid price update data');
-                const updateStmt = db.prepare('UPDATE packages SET price = ? WHERE id = ?');
+                const priceUpdateStmt = db.prepare('UPDATE packages SET price = ? WHERE id = ?');
                 for (const update of priceUpdates) {
-                    updateStmt.run(update.newPrice, update.id);
+                    priceUpdateStmt.run(update.newPrice, update.id);
                 }
                 return { message: `${priceUpdates.length} package prices updated.` };
-            
-            // +++ NEW CASE FOR BULK EDIT +++
+            case 'setIndividualNames':
+                if (!Array.isArray(nameUpdates)) throw new Error('Invalid name update data');
+                const nameUpdateStmt = db.prepare('UPDATE packages SET name = ? WHERE id = ?');
+                for (const update of nameUpdates) {
+                    nameUpdateStmt.run(update.newName, update.id);
+                }
+                return { message: `${nameUpdates.length} package names updated.` };
+            case 'setIndividualCodes':
+                if (!Array.isArray(codeUpdates)) throw new Error('Invalid code update data');
+                const codeUpdateStmt = db.prepare('UPDATE packages SET product_code = ? WHERE id = ?');
+                for (const update of codeUpdates) {
+                    codeUpdateStmt.run(update.newCode, update.id);
+                }
+                return { message: `${codeUpdates.length} package codes updated.` };
             case 'bulkEdit':
                 if (typeof updates !== 'object' || updates === null || Object.keys(updates).length === 0) {
                     throw new Error('Invalid update data provided for bulk edit.');
                 }
-
                 const allowedFields = ['price', 'type', 'channel', 'game_association'];
                 const fieldsToUpdate = Object.keys(updates).filter(key => allowedFields.includes(key));
-
                 if (fieldsToUpdate.length === 0) {
                     throw new Error('No valid fields to update in bulk edit.');
                 }
-
                 const setClauses = fieldsToUpdate.map(key => `${key} = ?`).join(', ');
                 const values = fieldsToUpdate.map(key => updates[key]);
-
                 const bulkUpdateStmt = db.prepare(`UPDATE packages SET ${setClauses} WHERE id IN (${placeholders})`);
                 bulkUpdateStmt.run(...values, ...ids);
                 return { message: `${ids.length} packages have been updated.` };
-            
             default:
                 throw new Error('Invalid action');
         }
     });
-
     try {
         const result = runInTransaction();
         res.json(result);
     } catch (error) {
         console.error('Bulk action error:', error);
-        res.status(500).json({ error: 'Failed to perform bulk action', details: error.message });
+        let errorMessage = 'Failed to perform bulk action.';
+        if (error.code === 'SQLITE_CONSTRAINT') {
+            errorMessage = 'Cannot delete: One or more packages are linked to other data.';
+        }
+        res.status(500).json({ error: errorMessage });
     }
 });
 
-
-app.get('/api/games/order', requireLogin, (req, res) => {
+app.get('/api/games/order', (req, res) => {
     let orderedGames = [];
     try {
         if (fs.existsSync(GAME_ORDER_FILE_PATH)) {
             orderedGames = JSON.parse(fs.readFileSync(GAME_ORDER_FILE_PATH, 'utf8'));
         }
     } catch (e) { /* Ignore parsing errors */ }
-
     const allDbGames = db.prepare("SELECT DISTINCT game_association FROM packages").all().map(g => g.game_association);
     const newGames = allDbGames.filter(g => !orderedGames.includes(g)).sort();
     const finalGameOrder = [...orderedGames, ...newGames];
-    
     res.json(finalGameOrder);
 });
 
-app.post('/api/games/order', requireLogin, (req, res) => {
+app.post('/api/games/order', (req, res) => {
     try {
         const { gameOrder } = req.body;
         if (!Array.isArray(gameOrder)) {
@@ -287,28 +315,29 @@ app.post('/api/games/order', requireLogin, (req, res) => {
     }
 });
 
-app.get('/api/dashboard-data', requireLogin, (req, res) => {
+app.get('/api/dashboard-data', (req, res) => {
     try {
+        const { game } = req.query;
         let orderedGames = [];
         try {
             if (fs.existsSync(GAME_ORDER_FILE_PATH)) {
                 orderedGames = JSON.parse(fs.readFileSync(GAME_ORDER_FILE_PATH, 'utf8'));
             }
         } catch (e) { /* ignore */ }
-
         const allDbGames = db.prepare("SELECT DISTINCT game_association FROM packages").all().map(g => g.game_association);
         const newGames = allDbGames.filter(g => !orderedGames.includes(g)).sort();
         let sortedGames = [...orderedGames, ...newGames];
-        
-        const caseClauses = sortedGames.map((game, index) => `WHEN ? THEN ${index}`).join(' ');
-        const finalOrderBy = `ORDER BY CASE game_association ${caseClauses.length > 0 ? caseClauses : ''} ELSE 999 END, sort_order`;
-        
-        const packagesStmt = db.prepare(`SELECT * FROM packages ${finalOrderBy}`);
-        const packages = packagesStmt.all(...sortedGames);
-        
         const activeGames = db.prepare("SELECT DISTINCT game_association FROM packages WHERE is_active = 1").all().map(g => g.game_association);
-        const finalSortedActiveGames = sortedGames.filter(game => activeGames.includes(game));
-
+        const finalSortedActiveGames = sortedGames.filter(g => activeGames.includes(g));
+        let query = 'SELECT * FROM packages';
+        const params = [];
+        if (game) {
+            query += ' WHERE game_association = ?';
+            params.push(game);
+        }
+        query += ' ORDER BY sort_order';
+        const packagesStmt = db.prepare(query);
+        const packages = packagesStmt.all(...params);
         res.json({ packages, games: finalSortedActiveGames });
     } catch (error) {
         console.error("Error fetching dashboard data:", error);
@@ -316,14 +345,9 @@ app.get('/api/dashboard-data', requireLogin, (req, res) => {
     }
 });
 
-// --- Admin Routes ---
-app.get('/admin/homepage', requireLogin, (req, res) => { 
-    res.redirect('/admin/dashboard'); 
-});
-app.get('/admin/dashboard', requireLogin, (req, res) => { res.sendFile(path.join(__dirname, 'public', 'admin-dashboard.html')); });
-app.get('/admin/packages', requireLogin, (req, res) => { res.sendFile(path.join(__dirname, 'public', 'package-management.html')); });
-app.get('/terms', (req, res) => {res.sendFile(path.join(__dirname, 'public', 'terms.html'));
-});
+// ✨ FIX STEP 3: ให้ static file serving ทำงานหลังจากที่กำหนด Route ทั้งหมดแล้ว
+// จะให้บริการไฟล์เช่น CSS, JS, และไฟล์ public อื่นๆ ที่ไม่มีใน Route ด้านบน
+app.use(express.static(path.join(__dirname, 'public')));
 
 
 app.listen(PORT, () => console.log(`Server is running at http://localhost:${PORT}`));

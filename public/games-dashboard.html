@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GAMES MANAGEMENT</title>
+    <link rel="stylesheet" href="/shared-styles.css"> 
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <style>
+        body { 
+            font-family: 'Sarabun', sans-serif; 
+            background-color: var(--background-color); 
+            color: var(--text-body); 
+            margin: 0;
+        }
+        /* ✨ BUG FIX: Moved animation here from body */
+        .container { 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            padding: 30px; 
+            animation: fadeInPage 0.5s ease-out forwards;
+        }
+        .page-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+        .page-header h1 { font-size: 1.75rem; color: var(--text-heading); margin: 0; }
+        .page-header .action-buttons { display: flex; gap: 12px; }
+        .games-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 16px;
+            margin-top: 24px;
+        }
+        
+        .game-card {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--card-background);
+            border-radius: 12px;
+            padding: 28px;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-body);
+            text-decoration: none;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            border: 1px solid var(--border-color);
+        }
+        .game-card:hover { transform: translateY(-5px); box-shadow: 0 8px 20px rgba(0,0,0,0.08); color: var(--primary-color); }
+        .loading-text { font-size: 1.2rem; color: var(--text-light); text-align: center; padding: 40px; grid-column: 1 / -1; }
+        
+        .order-list-container {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 8px;
+        }
+        .order-item { padding: 12px 16px; background-color: white; border: 1px solid var(--border-color); border-radius: 6px; cursor: grab; user-select: none; font-weight: 500; font-size: 1rem; margin-bottom: 8px; }
+        .order-item:last-child { margin-bottom: 0; }
+        .order-item:hover { background-color: #f1f5f9; border-color: var(--primary-color); }
+        .sortable-ghost { background: var(--primary-light); opacity: 0.6; border: 1px dashed var(--primary-color); }
+        .form-group { margin-bottom: 0; }
+        .form-group label { display: block; font-weight: 600; margin-bottom: 8px; font-size: 0.9rem; text-align: left; }
+        .form-group input { width: 100%; height: 42px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--border-color); font-size: 1rem; }
+        .form-group input:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 3px var(--primary-light); }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header class="page-header">
+            <h1></h1>
+            <div class="action-buttons">
+                <button id="arrange-games-btn" class="btn btn-icon" title="Arrange Games" style="color: var(--primary-color); border-color: var(--primary-color);">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                    </svg>
+                </button>
+                <button id="add-new-game-btn" class="btn btn-primary">Add New Game</button>
+            </div>
+        </header>
+
+        <main>
+            <div id="games-grid" class="games-grid">
+                <p class="loading-text">Loading games...</p>
+            </div>
+        </main>
+    </div>
+
+    <div id="arrange-modal" class="modal-overlay hidden">
+        <div class="modal-content" style="max-width: 480px;">
+            <div class="modal-header">
+                <h2>จัดลำดับการแสดงผลเกม</h2>
+                <button class="close-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p style="color: var(--text-light); margin-top: 0; margin-bottom: 16px;">ลากวางเพื่อจัดลำดับการแสดงผลเกม</p>
+                <div id="arrange-list-container" class="order-list-container"></div>
+            </div>
+            <div class="modal-footer">
+                <button id="save-arrange-btn" class="btn btn-primary">Save Order</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="add-game-modal" class="modal-overlay hidden">
+        <div class="modal-content" style="max-width: 480px;">
+            <div class="modal-header">
+                <h2>Add New Game</h2>
+                <button class="close-btn">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                 <div class="form-group">
+                    <label for="new-game-name-input">Game Name</label>
+                    <input type="text" id="new-game-name-input" placeholder="Enter new game name...">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancel-add-game-btn" class="btn">Cancel</button>
+                <button id="save-new-game-btn" class="btn btn-primary">Save & Continue</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-notification" class="toast"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const DashboardApp = {
+                currentGamesOrder: [],
+                elements: {
+                    grid: document.getElementById('games-grid'),
+                    toast: document.getElementById('toast-notification'),
+                    arrangeModal: document.getElementById('arrange-modal'),
+                    arrangeGamesBtn: document.getElementById('arrange-games-btn'),
+                    arrangeListContainer: document.getElementById('arrange-list-container'),
+                    saveArrangeBtn: document.getElementById('save-arrange-btn'),
+                    closeArrangeModalBtn: document.getElementById('arrange-modal').querySelector('.close-btn'),
+                    addGameModal: document.getElementById('add-game-modal'),
+                    addNewGameBtn: document.getElementById('add-new-game-btn'),
+                    newGameNameInput: document.getElementById('new-game-name-input'),
+                    saveNewGameBtn: document.getElementById('save-new-game-btn'),
+                    cancelAddGameBtn: document.getElementById('cancel-add-game-btn'),
+                    closeAddGameModalBtn: document.getElementById('add-game-modal').querySelector('.close-btn'),
+                },
+                init() {
+                    this.initEventListeners();
+                    this.fetchGames();
+                },
+                initEventListeners() {
+                    this.elements.arrangeGamesBtn.addEventListener('click', () => this.openArrangeModal());
+                    this.elements.saveArrangeBtn.addEventListener('click', () => this.handleSaveOrder());
+                    this.elements.closeArrangeModalBtn.addEventListener('click', () => this.hideModal(this.elements.arrangeModal));
+                    this.elements.addNewGameBtn.addEventListener('click', () => this.openAddGameModal());
+                    this.elements.saveNewGameBtn.addEventListener('click', () => this.handleSaveNewGame());
+                    this.elements.cancelAddGameBtn.addEventListener('click', () => this.hideModal(this.elements.addGameModal));
+                    this.elements.closeAddGameModalBtn.addEventListener('click', () => this.hideModal(this.elements.addGameModal));
+                },
+                async fetchGames() {
+                    try {
+                        const response = await fetch('/api/games/order');
+                        if (!response.ok) throw new Error('Failed to fetch games');
+                        this.currentGamesOrder = await response.json();
+                        this.renderGrid();
+                    } catch (error) {
+                        this.elements.grid.innerHTML = '<p class="loading-text">Error loading games. Please try again.</p>';
+                    }
+                },
+                async handleSaveOrder() {
+                    const saveButton = this.elements.saveArrangeBtn;
+                    const items = this.elements.arrangeListContainer.querySelectorAll('.order-item');
+                    const newOrder = Array.from(items).map(item => item.textContent);
+
+                    saveButton.classList.add('btn-loading');
+                    try {
+                        const response = await fetch('/api/games/order', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ gameOrder: newOrder })
+                        });
+                        if (!response.ok) throw new Error('Failed to save order');
+                        this.hideModal(this.elements.arrangeModal);
+                        this.showToast('จัดลำดับเกมสำเร็จ!', 'success');
+                        await this.fetchGames();
+                    } catch (error) {
+                        this.showToast('เกิดข้อผิดพลาดในการบันทึก', 'error');
+                    } finally {
+                        saveButton.classList.remove('btn-loading');
+                    }
+                },
+                renderGrid() {
+                    this.elements.grid.innerHTML = '';
+                    if (this.currentGamesOrder.length === 0) {
+                        this.elements.grid.innerHTML = '<p class="loading-text">ยังไม่มีเกมในระบบ กด "Add New Game" เพื่อเริ่มต้น</p>';
+                        return;
+                    }
+                    this.currentGamesOrder.forEach(game => {
+                        const card = document.createElement('a');
+                        card.className = 'game-card';
+                        card.href = `/admin/packages?game=${encodeURIComponent(game)}`;
+                        card.textContent = game;
+                        this.elements.grid.appendChild(card);
+                    });
+                },
+                openAddGameModal() {
+                    this.elements.newGameNameInput.value = '';
+                    this.showModal(this.elements.addGameModal);
+                    this.elements.newGameNameInput.focus();
+                },
+                handleSaveNewGame() {
+                    const gameName = this.elements.newGameNameInput.value;
+                    if (gameName && gameName.trim() !== '') {
+                        this.hideModal(this.elements.addGameModal);
+                        window.location.href = `/admin/packages?game=${encodeURIComponent(gameName.trim())}`;
+                    } else {
+                        this.showToast("Game name cannot be empty.", "error");
+                    }
+                },
+                openArrangeModal() {
+                    this.elements.arrangeListContainer.innerHTML = '';
+                    this.currentGamesOrder.forEach(game => {
+                        const item = document.createElement('div');
+                        item.className = 'order-item';
+                        item.textContent = game;
+                        this.elements.arrangeListContainer.appendChild(item);
+                    });
+                    new Sortable(this.elements.arrangeListContainer, { animation: 150, ghostClass: 'sortable-ghost' });
+                    this.showModal(this.elements.arrangeModal);
+                },
+                showToast(message, type = 'success') {
+                    this.elements.toast.textContent = message;
+                    this.elements.toast.className = `toast ${type} show`;
+                    setTimeout(() => this.elements.toast.classList.remove('show'), 3000);
+                },
+                showModal(modalEl) {
+                    modalEl.classList.remove('hidden');
+                    modalEl.classList.add('show');
+                },
+                hideModal(modalEl) {
+                    modalEl.classList.remove('show');
+                    modalEl.classList.add('hidden');
+                }
+            };
+            DashboardApp.init();
+        });
+    </script>
+</body>
+</html>
