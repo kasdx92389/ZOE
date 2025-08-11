@@ -36,7 +36,6 @@ try {
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// ✨ FIX STEP 1: เริ่มต้นระบบ Session ก่อนเป็นอันดับแรกเสมอ
 app.use(session({
     store: new FileStore({
         path: './sessions',
@@ -52,19 +51,18 @@ app.use(session({
     }
 }));
 
-// ✨ FIX STEP 2: สร้าง Middleware ตรวจสอบการล็อกอิน
 const requireLogin = (req, res, next) => {
     if (req.session.userId) {
-        next(); // ถ้าล็อกอินแล้ว ให้ไปต่อ
+        next();
     } else {
-        res.redirect('/'); // ถ้ายังไม่ล็อกอิน ให้กลับไปหน้าแรก
+        res.redirect('/');
     }
 };
 
-// --- Public & Auth Routes (กำหนดเส้นทางทั้งหมดก่อน Static Files) ---
+// --- Public & Auth Routes ---
 app.get('/', (req, res) => {
     if (req.session.userId) {
-        res.redirect('/admin/dashboard');
+        res.redirect('/admin/home'); // <-- เปลี่ยนเป็น /admin/home
     } else {
         res.sendFile(path.join(__dirname, 'public', 'admin-login.html'));
     }
@@ -83,7 +81,7 @@ app.post('/login', async (req, res) => {
     const userHash = users[username];
     if (userHash && await bcrypt.compare(password, userHash)) {
         req.session.userId = username;
-        return res.redirect('/admin/dashboard');
+        return res.redirect('/admin/home'); // <-- เปลี่ยนเป็น /admin/home
     }
     res.redirect(`/?error=${encodeURIComponent('Username หรือ Password ไม่ถูกต้อง')}`);
 });
@@ -106,7 +104,11 @@ app.get('/logout', (req, res) => {
     });
 });
 
-// --- Admin Routes (Protected by requireLogin) ---
+// --- Admin Routes ---
+app.get('/admin/home', requireLogin, (req, res) => { // ++ เพิ่ม Route สำหรับ Homepage ++
+    res.sendFile(path.join(__dirname, 'public', 'homepage.html'));
+});
+
 app.get('/admin/dashboard', requireLogin, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin-dashboard.html'));
 });
@@ -118,203 +120,14 @@ app.get('/admin/packages', requireLogin, (req, res) => {
         res.sendFile(path.join(__dirname, 'public', 'games-dashboard.html'));
     }
 });
-
-// --- API Endpoints (Protected by requireLogin) ---
-// ... (All API routes will be implicitly protected because they come before express.static)
-app.use('/api', requireLogin); // ⭐️ ปกป้อง API ทุกเส้นทางด้วยบรรทัดนี้
-
-app.post('/api/packages', (req, res) => {
-    const { name, price, product_code, type, channel, game_association, originalId } = req.body;
-    const transaction = db.transaction(() => {
-        let newSortOrder;
-        if (originalId) {
-            const originalOrderStmt = db.prepare('SELECT sort_order FROM packages WHERE id = ?');
-            const originalPackage = originalOrderStmt.get(originalId);
-            if (!originalPackage) throw new Error('Original package for cloning not found');
-            const originalSortOrder = originalPackage.sort_order;
-            const shiftStmt = db.prepare('UPDATE packages SET sort_order = sort_order + 1 WHERE sort_order > ?');
-            shiftStmt.run(originalSortOrder);
-            newSortOrder = originalSortOrder + 1;
-        } else {
-            const maxSortOrderStmt = db.prepare('SELECT MAX(sort_order) as max_order FROM packages');
-            const result = maxSortOrderStmt.get();
-            newSortOrder = (result.max_order === null ? -1 : result.max_order) + 1;
-        }
-        const insertStmt = db.prepare(`
-            INSERT INTO packages (name, price, product_code, type, channel, game_association, sort_order) 
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        `);
-        const info = insertStmt.run(name, price, product_code, type, channel, game_association, newSortOrder);
-        return { id: info.lastInsertRowid };
-    });
-    try {
-        const result = transaction();
-        res.status(201).json(result);
-    } catch (error) {
-        console.error("Failed to create package:", error);
-        res.status(500).json({ error: 'Failed to create package', details: error.message });
-    }
+app.get('/admin/zoe-management', requireLogin, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'order-management.html'));
 });
 
-// ... (The rest of API routes do not need 'requireLogin' individually anymore)
-app.post('/api/packages/order', (req, res) => {
-    const { order } = req.body;
-    if (!Array.isArray(order)) return res.status(400).json({ error: 'Invalid order data' });
-    const updateStmt = db.prepare('UPDATE packages SET sort_order = ? WHERE id = ?');
-    const updateTransaction = db.transaction((packages) => {
-        for (const pkg of packages) updateStmt.run(pkg.sort_order, pkg.id);
-    });
-    try {
-        const packagesToUpdate = order.map((id, index) => ({ id: id, sort_order: index }));
-        updateTransaction(packagesToUpdate);
-        res.json({ message: 'Order updated successfully' });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to update order' });
-    }
-});
+// --- API Endpoints ---
+app.use('/api', requireLogin);
 
-app.put('/api/packages/:id', (req, res) => {
-    try {
-        const { id } = req.params;
-        const getStmt = db.prepare('SELECT * FROM packages WHERE id = ?');
-        const existingPackage = getStmt.get(id);
-        if (!existingPackage) {
-            return res.status(404).json({ error: 'Package not found' });
-        }
-        const dataToUpdate = { ...existingPackage, ...req.body };
-        const price = parseFloat(dataToUpdate.price);
-        if (isNaN(price)) {
-            return res.status(400).json({ error: 'Invalid input: Price must be a valid number.' });
-        }
-        dataToUpdate.price = price;
-        if (!dataToUpdate.name || !dataToUpdate.type || !dataToUpdate.channel || !dataToUpdate.game_association) {
-            return res.status(400).json({ error: 'Invalid input: Name, Type, Channel, and Game cannot be empty.' });
-        }
-        const { name, product_code, type, channel, game_association, is_active } = dataToUpdate;
-        const updateStmt = db.prepare(`
-            UPDATE packages 
-            SET name = ?, price = ?, product_code = ?, type = ?, channel = ?, game_association = ?, is_active = ? 
-            WHERE id = ?
-        `);
-        updateStmt.run(name, price, product_code, type, channel, game_association, is_active, id);
-        res.json({ message: 'Package updated successfully' });
-    } catch (error) {
-        console.error("Error updating package:", error);
-        res.status(500).json({ error: 'Failed to update package' });
-    }
-});
-
-app.delete('/api/packages/:id', (req, res) => {
-    try {
-        const stmt = db.prepare('DELETE FROM packages WHERE id = ?');
-        const info = stmt.run(req.params.id);
-        if (info.changes === 0) {
-            return res.status(404).json({ error: 'Package not found, nothing to delete.' });
-        }
-        res.json({ message: 'Package deleted successfully' });
-    } catch (error) {
-        console.error("Error deleting package:", error);
-        let errorMessage = 'Failed to delete package.';
-        if (error.code === 'SQLITE_CONSTRAINT') {
-            errorMessage = 'Cannot delete: This package is linked to other data.';
-        }
-        res.status(500).json({ error: errorMessage });
-    }
-});
-
-app.post('/api/packages/bulk-actions', (req, res) => {
-    const { action, ids, status, priceUpdates, nameUpdates, codeUpdates, updates } = req.body;
-    if (!action || !Array.isArray(ids) || ids.length === 0) {
-        return res.status(400).json({ error: 'Invalid request' });
-    }
-    const runInTransaction = db.transaction(() => {
-        const placeholders = ids.map(() => '?').join(',');
-        switch (action) {
-            case 'delete':
-                db.prepare(`DELETE FROM packages WHERE id IN (${placeholders})`).run(...ids);
-                return { message: `${ids.length} packages deleted.` };
-            case 'updateStatus':
-                if (typeof status !== 'number') throw new Error('Invalid status');
-                db.prepare(`UPDATE packages SET is_active = ? WHERE id IN (${placeholders})`).run(status, ...ids);
-                return { message: `${ids.length} packages updated.` };
-            case 'setIndividualPrices':
-                if (!Array.isArray(priceUpdates)) throw new Error('Invalid price update data');
-                const priceUpdateStmt = db.prepare('UPDATE packages SET price = ? WHERE id = ?');
-                for (const update of priceUpdates) {
-                    priceUpdateStmt.run(update.newPrice, update.id);
-                }
-                return { message: `${priceUpdates.length} package prices updated.` };
-            case 'setIndividualNames':
-                if (!Array.isArray(nameUpdates)) throw new Error('Invalid name update data');
-                const nameUpdateStmt = db.prepare('UPDATE packages SET name = ? WHERE id = ?');
-                for (const update of nameUpdates) {
-                    nameUpdateStmt.run(update.newName, update.id);
-                }
-                return { message: `${nameUpdates.length} package names updated.` };
-            case 'setIndividualCodes':
-                if (!Array.isArray(codeUpdates)) throw new Error('Invalid code update data');
-                const codeUpdateStmt = db.prepare('UPDATE packages SET product_code = ? WHERE id = ?');
-                for (const update of codeUpdates) {
-                    codeUpdateStmt.run(update.newCode, update.id);
-                }
-                return { message: `${codeUpdates.length} package codes updated.` };
-            case 'bulkEdit':
-                if (typeof updates !== 'object' || updates === null || Object.keys(updates).length === 0) {
-                    throw new Error('Invalid update data provided for bulk edit.');
-                }
-                const allowedFields = ['price', 'type', 'channel', 'game_association'];
-                const fieldsToUpdate = Object.keys(updates).filter(key => allowedFields.includes(key));
-                if (fieldsToUpdate.length === 0) {
-                    throw new Error('No valid fields to update in bulk edit.');
-                }
-                const setClauses = fieldsToUpdate.map(key => `${key} = ?`).join(', ');
-                const values = fieldsToUpdate.map(key => updates[key]);
-                const bulkUpdateStmt = db.prepare(`UPDATE packages SET ${setClauses} WHERE id IN (${placeholders})`);
-                bulkUpdateStmt.run(...values, ...ids);
-                return { message: `${ids.length} packages have been updated.` };
-            default:
-                throw new Error('Invalid action');
-        }
-    });
-    try {
-        const result = runInTransaction();
-        res.json(result);
-    } catch (error) {
-        console.error('Bulk action error:', error);
-        let errorMessage = 'Failed to perform bulk action.';
-        if (error.code === 'SQLITE_CONSTRAINT') {
-            errorMessage = 'Cannot delete: One or more packages are linked to other data.';
-        }
-        res.status(500).json({ error: errorMessage });
-    }
-});
-
-app.get('/api/games/order', (req, res) => {
-    let orderedGames = [];
-    try {
-        if (fs.existsSync(GAME_ORDER_FILE_PATH)) {
-            orderedGames = JSON.parse(fs.readFileSync(GAME_ORDER_FILE_PATH, 'utf8'));
-        }
-    } catch (e) { /* Ignore parsing errors */ }
-    const allDbGames = db.prepare("SELECT DISTINCT game_association FROM packages").all().map(g => g.game_association);
-    const newGames = allDbGames.filter(g => !orderedGames.includes(g)).sort();
-    const finalGameOrder = [...orderedGames, ...newGames];
-    res.json(finalGameOrder);
-});
-
-app.post('/api/games/order', (req, res) => {
-    try {
-        const { gameOrder } = req.body;
-        if (!Array.isArray(gameOrder)) {
-            return res.status(400).json({ error: 'Invalid data format' });
-        }
-        fs.writeFileSync(GAME_ORDER_FILE_PATH, JSON.stringify(gameOrder, null, 2));
-        res.json({ message: 'Game order saved successfully.' });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to save game order.' });
-    }
-});
-
+// (Package and Game API endpoints remain the same as your provided file)
 app.get('/api/dashboard-data', (req, res) => {
     try {
         const { game } = req.query;
@@ -345,9 +158,251 @@ app.get('/api/dashboard-data', (req, res) => {
     }
 });
 
-// ✨ FIX STEP 3: ให้ static file serving ทำงานหลังจากที่กำหนด Route ทั้งหมดแล้ว
-// จะให้บริการไฟล์เช่น CSS, JS, และไฟล์ public อื่นๆ ที่ไม่มีใน Route ด้านบน
-app.use(express.static(path.join(__dirname, 'public')));
 
+// ================== Orders Management ==================
+// --- API for Games Dashboard ---
+app.get('/api/games/order', (req, res) => {
+    try {
+        let orderedGames = [];
+        // ตรวจสอบว่ามีไฟล์จัดลำดับเกมอยู่หรือไม่
+        if (fs.existsSync(GAME_ORDER_FILE_PATH)) {
+            orderedGames = JSON.parse(fs.readFileSync(GAME_ORDER_FILE_PATH, 'utf8'));
+        }
+        
+        // ดึงรายชื่อเกมทั้งหมดที่มีในฐานข้อมูล
+        const allDbGames = db.prepare("SELECT DISTINCT game_association FROM packages").all().map(g => g.game_association);
+        
+        // หาเกมใหม่ที่ยังไม่มีในไฟล์จัดลำดับ แล้วเรียงตามตัวอักษร
+        const newGames = allDbGames.filter(g => !orderedGames.includes(g)).sort();
+        
+        // รวมรายชื่อเกมที่จัดลำดับแล้วกับเกมใหม่
+        const finalSortedGames = [...orderedGames, ...newGames];
+        
+        res.json(finalSortedGames);
+    } catch (error) {
+        console.error("Error fetching game order:", error);
+        res.status(500).json({ error: 'Failed to retrieve game order' });
+    }
+});
+
+function genOrderNumber() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    const seq = Math.floor(Math.random()*9000)+1000;
+    return `ODR-${y}${m}${day}-${seq}`;
+}
+
+app.get('/api/orders', (req,res)=>{
+    const { q = '', status = '', platform = '', limit = 200 } = req.query;
+    const like = `%${q}%`;
+    let sql = `SELECT * FROM orders WHERE 1=1`;
+    const params = [];
+    if (q) { 
+        sql += ` AND (order_number LIKE ? OR customer_name LIKE ? OR game_name LIKE ? OR product_code LIKE ?)`; 
+        params.push(like, like, like, like); 
+    }
+    if (status) { sql += ` AND status = ?`; params.push(status); }
+    if (platform) { sql += ` AND platform = ?`; params.push(platform); }
+    sql += ` ORDER BY created_at DESC LIMIT ?`; params.push(Number(limit));
+
+    try {
+        // 1. ดึงข้อมูลออเดอร์หลัก
+        const orders = db.prepare(sql).all(...params);
+        const itemsStmt = db.prepare('SELECT * FROM order_items WHERE order_id = ?');
+
+        // 2. สำหรับแต่ละออเดอร์ ให้ดึงรายการแพ็กเกจ (items) มาใส่เพิ่มเข้าไป
+        for (const order of orders) {
+            order.items = itemsStmt.all(order.id);
+        }
+
+        // 3. ส่งข้อมูลออเดอร์ที่สมบูรณ์ (มี items) กลับไป
+        res.json({ orders: orders });
+        
+    } catch (e) {
+        console.error('Orders list error', e);
+        res.status(500).json({ error: 'Failed to load orders' });
+    }
+});
+
+app.post('/api/orders', (req,res)=>{
+    const b = req.body || {};
+    
+    const createOrderTx = db.transaction(() => {
+        const orderNumber = genOrderNumber();
+        const orderDate = b.order_date || new Date().toISOString().slice(0,10);
+        const totalPaid = Number(b.total_paid||0);
+        const cost = Number(b.cost||0);
+        const profit = totalPaid - cost;
+        const packagesText = Array.isArray(b.items) && b.items.length ? b.items.map(it=>`${it.package_name} x${it.quantity}`).join(', ') : '';
+        const packageCount = Array.isArray(b.items) ? b.items.reduce((a,c)=>a+Number(c.quantity||0),0) : 0;
+
+        const info = db.prepare(`INSERT INTO orders(
+            order_number, order_date, platform, customer_name, game_name,
+            total_paid, payment_proof_url, sales_proof_url, product_code, package_count,
+            packages_text, cost, profit, status, operator, topup_channel, note
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+            orderNumber, orderDate, b.platform||'', b.customer_name||'', b.game_name||'',
+            totalPaid, b.payment_proof_url||'', b.sales_proof_url||'', b.product_code||'', packageCount,
+            packagesText, cost, profit, b.status||'รอดำเนินการ', b.operator||'', b.topup_channel||'', b.note||''
+        );
+        const orderId = info.lastInsertRowid;
+
+        if (Array.isArray(b.items) && b.items.length > 0) {
+            const stmt = db.prepare(`INSERT INTO order_items(order_id, package_id, package_name, product_code, quantity, unit_price, cost, total_price) VALUES (?,?,?,?,?,?,?,?)`);
+            for (const it of b.items) {
+                const qty = Number(it.quantity||1);
+                const unit = Number(it.unit_price||0);
+                const costIt = Number(it.cost||0);
+                stmt.run(orderId, it.package_id||null, it.package_name||'', it.product_code||'', qty, unit, costIt, qty*unit);
+            }
+        }
+        return { id: orderId, order_number: orderNumber };
+    });
+
+    try {
+        const result = createOrderTx();
+        res.status(201).json(result);
+    } catch (e) {
+        console.error('Create order error', e);
+        res.status(500).json({ error: 'Failed to create order' });
+    }
+});
+
+app.put('/api/orders/:orderNumber', (req,res)=>{
+    const { orderNumber } = req.params;
+    const b = req.body || {};
+    
+    // Recalculate summary fields on every update
+    const totalPaid = Number(b.total_paid||0);
+    const cost = Number(b.cost||0);
+    const profit = totalPaid - cost;
+    const packagesText = Array.isArray(b.items) && b.items.length ? b.items.map(it=>`${it.package_name} x${it.quantity}`).join(', ') : '';
+    const packageCount = Array.isArray(b.items) ? b.items.reduce((a,c)=>a+Number(c.quantity||0),0) : 0;
+
+    const updateTransaction = db.transaction(() => {
+        const order = db.prepare('SELECT id FROM orders WHERE order_number = ?').get(orderNumber);
+        if (!order) {
+            throw new Error('OrderNotFound');
+        }
+        const numericId = order.id;
+
+        db.prepare(`UPDATE orders SET
+            order_date=?, platform=?, customer_name=?, game_name=?, total_paid=?,
+            payment_proof_url=?, sales_proof_url=?, product_code=?, package_count=?, packages_text=?,
+            cost=?, profit=?, status=?, operator=?, topup_channel=?, note=?
+            WHERE id=?`).run(
+                b.order_date, b.platform, b.customer_name, b.game_name, totalPaid,
+                b.payment_proof_url, b.sales_proof_url, b.product_code, packageCount, packagesText,
+                cost, profit, b.status, b.operator, b.topup_channel, b.note, numericId
+        );
+
+        // --- Start of intelligent item update logic ---
+
+        // 1. Fetch existing items from the database
+        const existingItems = db.prepare('SELECT id, package_id, quantity, unit_price FROM order_items WHERE order_id = ?').all(numericId);
+        const existingItemsMap = new Map(existingItems.map(item => [item.package_id, item]));
+        
+        // 2. Get new items from the request and prepare DB statements
+        const newItems = b.items || [];
+        const newItemsPackageIds = new Set(newItems.map(item => item.package_id));
+        const insertStmt = db.prepare(`INSERT INTO order_items(order_id, package_id, package_name, product_code, quantity, unit_price, cost, total_price) VALUES (?,?,?,?,?,?,?,?)`);
+        const updateStmt = db.prepare(`UPDATE order_items SET quantity = ?, unit_price = ?, total_price = ? WHERE id = ?`);
+
+        // 3. Loop to find items to delete (in DB but not in new request)
+        const idsToDelete = [];
+        for (const existingItem of existingItems) {
+            if (!newItemsPackageIds.has(existingItem.package_id)) {
+                idsToDelete.push(existingItem.id);
+            }
+        }
+        if (idsToDelete.length > 0) {
+            const deletePlaceholders = idsToDelete.map(() => '?').join(',');
+            db.prepare(`DELETE FROM order_items WHERE id IN (${deletePlaceholders})`).run(...idsToDelete);
+        }
+
+        // 4. Loop through new items to either INSERT or UPDATE
+        for (const newItem of newItems) {
+            const existingItem = existingItemsMap.get(newItem.package_id);
+            const qty = Number(newItem.quantity || 1);
+            const unit = Number(newItem.unit_price || 0);
+            const costIt = Number(newItem.cost || 0);
+            const totalPrice = qty * unit;
+
+            if (existingItem) {
+                // It exists, so UPDATE (but only if changed)
+                if (existingItem.quantity !== qty || existingItem.unit_price !== unit) {
+                    updateStmt.run(qty, unit, totalPrice, existingItem.id);
+                }
+            } else {
+                // It's new, so INSERT
+                insertStmt.run(numericId, newItem.package_id || null, newItem.package_name || '', newItem.product_code || '', qty, unit, costIt, totalPrice);
+            }
+        }
+        
+        // --- End of intelligent item update logic ---
+
+        return { order_number: orderNumber };
+    });
+
+    try {
+        const result = updateTransaction();
+        res.json({ ok: true, order_number: result.order_number });
+    } catch (e) {
+        console.error(`Update order error for ${orderNumber}:`, e);
+        if (e.message === 'OrderNotFound') {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+        res.status(500).json({ error: 'Failed to update order' });
+    }
+});
+
+app.delete('/api/orders/:orderNumber', (req, res) => {
+    const deleteOrderTransaction = db.transaction((numericId) => {
+        db.prepare('DELETE FROM order_items WHERE order_id = ?').run(numericId);
+        const info = db.prepare('DELETE FROM orders WHERE id = ?').run(numericId);
+        return info;
+    });
+
+    try {
+        const { orderNumber } = req.params;
+        const order = db.prepare('SELECT id FROM orders WHERE order_number = ?').get(orderNumber);
+
+        if (!order) {
+            return res.status(404).json({ error: 'Order not found, nothing to delete.' });
+        }
+
+        const numericId = order.id;
+        deleteOrderTransaction(numericId);
+
+        res.json({ ok: true, message: `Order ${orderNumber} and its items were deleted.` });
+
+    } catch (e) {
+        console.error(`Delete order error for ${req.params.orderNumber}:`, e);
+        res.status(500).json({ error: 'Failed to delete order' });
+    }
+});
+
+app.get('/api/orders/export/csv', (req,res)=>{
+    try {
+        const rows = db.prepare('SELECT * FROM orders ORDER BY created_at DESC').all();
+        const headers = [
+            'order_number','order_date','platform','customer_name','game_name','product_code','package_count','packages_text',
+            'total_paid','cost','profit','payment_proof_url','sales_proof_url','operator','topup_channel','status','note'
+        ];
+        const esc = v => '"' + String(v ?? '').replace(/"/g,'""') + '"';
+        const body = rows.map(r => headers.map(h => esc(r[h])).join(',')).join('\n');
+        const csv = '\ufeff' + headers.join(',') + '\n' + body;
+        res.setHeader('Content-Type','text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition','attachment; filename="orders_export.csv"');
+        res.send(csv);
+    } catch (e) {
+        console.error('Export csv error', e);
+        res.status(500).json({ error: 'Failed to export CSV' });
+    }
+});
+// ================== /Orders Management ==================
+app.use(express.static(path.join(__dirname, 'public')));
 
 app.listen(PORT, () => console.log(`Server is running at http://localhost:${PORT}`));

@@ -32,3 +32,46 @@ try {
 
 console.log("Database is ready.");
 module.exports = db;
+// ===== Orders tables (NEW) =====
+try {
+    db.pragma('foreign_keys = ON');
+    db.exec(`
+    CREATE TABLE IF NOT EXISTS orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_number TEXT UNIQUE NOT NULL,
+        order_date TEXT NOT NULL,
+        platform TEXT,
+        customer_name TEXT,
+        game_name TEXT,
+        total_paid REAL NOT NULL DEFAULT 0,
+        payment_proof_url TEXT,
+        sales_proof_url TEXT,
+        product_code TEXT,
+        package_count INTEGER NOT NULL DEFAULT 0,
+        packages_text TEXT,
+        cost REAL NOT NULL DEFAULT 0,
+        profit REAL NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'รอดำเนินการ',
+        operator TEXT,
+        topup_channel TEXT,
+        note TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS order_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id INTEGER NOT NULL,
+        package_id INTEGER,
+        package_name TEXT,
+        product_code TEXT,
+        quantity INTEGER NOT NULL DEFAULT 1,
+        unit_price REAL NOT NULL DEFAULT 0,
+        cost REAL NOT NULL DEFAULT 0,
+        total_price REAL NOT NULL DEFAULT 0,
+        FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE
+    );
+    `);
+    console.log("Orders tables ready.");
+} catch (e) {
+    console.error("Error creating orders tables:", e);
+}
+// ===== /Orders tables (NEW) =====

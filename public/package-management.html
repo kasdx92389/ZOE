@@ -99,9 +99,8 @@
             gap: 8px;
         }
 
-        /* --- NEW: Adjust thickness of the Add New button icon --- */
         #add-new-btn {
-            font-weight: 500; /* Adjust from 600 to 400 (normal weight) */
+            font-weight: 500;
         }
 
         .bulk-actions-content .selection-count { font-weight: 600; color: var(--text-body); }
@@ -241,27 +240,23 @@
             -moz-appearance: textfield;
         }
 
-        /* === Modal: จำกัดความสูง + เนื้อหาเลื่อนในตัว === */
         .modal-overlay {
-            /* กันชิดขอบจอเวลาหน้าจอเล็ก ๆ */
             padding: 24px;
             box-sizing: border-box;
         }
 
         .modal-content {
-            /* กำหนดความสูงสูงสุดตามจอ เพื่อไม่ให้หัวโมดัลหลุดออกนอกวิวนะ */
-            max-height: 85vh;              /* ปรับเป็น 90vh ได้ตามชอบ */
+            max-height: 85vh;
             display: flex;
             flex-direction: column;
-            overflow: hidden;              /* ให้ส่วน body เป็นคนสกรอลล์แทน */
+            overflow: hidden;
         }
 
             .modal-body {
-            overflow: auto;                /* เนื้อหาภายในเลื่อนในตัวเอง */
-            min-height: 0;                 /* สำคัญกับ flex-child เพื่อยอมสั้น/ขยายได้ */
+            overflow: auto;
+            min-height: 0;
         }
 
-        /* (แนะนำ) ให้ header/footer มองเห็นเสมอเวลาสกรอลล์รายการยาว */
         .modal-header {
             position: sticky;
             top: 0;
@@ -317,9 +312,9 @@
                             <path d="M2 12l10 5 10-5"></path>
                         </svg>
                     </button>
-                    <button id="back-btn" class="btn btn-icon" title="Back to Games">
+                    <a href="/admin/packages" class="btn btn-icon" title="Back to Games">
                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M10.354 4.646a.5.5 0 0 1 0 .708L6.707 8l3.647 3.646a.5.5 0 0 1-.708.708l-4-4a.5.5 0 0 1 0-.708l4-4a.5.5 0 0 1 .708 0z"></path></svg>
-                    </button>
+                    </a>
                     <button id="add-new-btn" class="btn btn-primary btn-icon" title="Add New Package" style="font-size: 1.5rem; line-height: 1; border-radius: 12px;">+</button>
                 </div>
             </header>
@@ -388,7 +383,6 @@
                     packageGrid: document.getElementById('package-grid'),
                     toast: document.getElementById('toast-notification'),
                     addNewBtn: document.getElementById('add-new-btn'),
-                    backBtn: document.getElementById('back-btn'),
                     selectAllCheckbox: document.getElementById('select-all-checkbox'),
                     bulkActionsContent: document.getElementById('bulk-actions-content'),
                     selectionCount: document.getElementById('selection-count'),
@@ -403,9 +397,7 @@
                     this.elements.stickyHeader.classList.toggle('scrolled', window.scrollY > 10);
                 });
                 this.elements.addNewBtn.addEventListener('click', () => this.openEditModal());
-                this.elements.backBtn.addEventListener('click', () => {
-                    window.location.href = new URL('/admin/packages', window.location.origin).href;
-                });
+                
                 this.elements.packageGrid.addEventListener('click', e => {
                     if (e.target.matches('.card-checkbox')) {
                         e.stopPropagation();
@@ -738,7 +730,6 @@
                 event.preventDefault();
                 const form = event.target;
                 
-                // ✨ BUG FIX: Correctly find the button associated with the form
                 const saveButton = document.querySelector(`button[form="${form.id}"]`);
 
                 const id = form.elements['package-id'].value;
@@ -863,3 +854,4 @@
     </script>
 </body>
 </html>
+}
