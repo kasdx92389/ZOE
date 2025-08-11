@@ -71,6 +71,7 @@ html, body {
 .brand { font-size: 20px; font-weight: 700; margin: 0; }
 .topbar, .form-header {
   display: flex;
+  justify-content: space-between; /* ++ เพิ่มบรรทัดนี้ ++ */
   align-items: center;
 }
 
