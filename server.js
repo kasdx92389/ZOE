@@ -448,6 +448,50 @@ app.delete('/api/orders/:orderNumber', async (req, res) => {
         res.status(500).json({ error: 'Failed to delete order' });
     }
 });
+// --- NEW: Route for exporting orders to CSV ---
+app.get('/api/orders/export/csv', async (req, res) => {
+    try {
+        // 1. ดึงข้อมูลออเดอร์ทั้งหมดจากฐานข้อมูล
+        const orders = await db.prepare('SELECT * FROM orders ORDER BY order_date DESC').all();
+
+        if (orders.length === 0) {
+            return res.status(404).send('ไม่มีรายการในออเดอร์');
+        }
+
+        // 2. กำหนดหัวข้อของไฟล์ CSV
+        const csvHeaders = [
+            'order_number', 'order_date', 'customer_name', 'game_name',
+            'platform', 'total_paid', 'cost', 'profit', 'status', 'operator',
+            'topup_channel', 'packages_text', 'note'
+        ];
+        let csv = csvHeaders.join(',') + '\n'; // สร้าง Header row
+
+        // 3. วนลูปเพื่อแปลงข้อมูลแต่ละออเดอร์ให้เป็นแถวใน CSV
+        for (const order of orders) {
+            const row = csvHeaders.map(header => {
+                let value = order[header] === null || order[header] === undefined ? '' : String(order[header]);
+                // จัดการกับข้อมูลที่มีเครื่องหมาย comma หรือ quote เพื่อไม่ให้ไฟล์ CSV เพี้ยน
+                if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+                    value = `"${value.replace(/"/g, '""')}"`; // Escape double quotes
+                }
+                return value;
+            });
+            csv += row.join(',') + '\n';
+        }
+
+        // 4. ตั้งค่า Headers เพื่อให้เบราว์เซอร์ดาวน์โหลดเป็นไฟล์
+        const fileName = `orders-export-${new Date().toISOString().slice(0, 10)}.csv`;
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+
+        // 5. ส่งข้อมูล CSV กลับไป
+        res.status(200).end(csv);
+
+    } catch (error) {
+        console.error('Failed to export orders:', error);
+        res.status(500).send('Failed to export orders.');
+    }
+});
 
 
 // --- Server Start ---

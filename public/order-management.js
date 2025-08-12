@@ -379,8 +379,44 @@
     // Ensure the export button listener is correctly attached
     const exportBtn = el('btn-export-csv');
     if (exportBtn) {
-        exportBtn.addEventListener('click', () => {
-            location.href = '/api/orders/export/csv';
+        exportBtn.addEventListener('click', async () => {
+            const originalBtnContent = exportBtn.innerHTML;
+            exportBtn.innerHTML = `<span><svg class="btn-spinner" viewBox="0 0 50 50"><circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="5"></circle></svg> Processing...</span>`;
+            exportBtn.disabled = true;
+
+            try {
+                const res = await fetch('/api/orders/export/csv');
+
+                if (res.ok) { // Status 200: มีไฟล์ให้ดาวน์โหลด
+                    const blob = await res.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    
+                    const disposition = res.headers.get('content-disposition');
+                    let filename = `orders-export.csv`;
+                    if (disposition && disposition.includes('attachment')) {
+                        const matches = /filename="([^"]+)"/.exec(disposition);
+                        if (matches && matches[1]) filename = matches[1];
+                    }
+                    
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    a.remove();
+                } else { // Status 404 หรืออื่นๆ: ไม่มีไฟล์
+                    const errorMsg = await res.text();
+                    showCustomAlert(errorMsg || 'ไม่มีข้อมูลออเดอร์ให้ Export', 'แจ้งเตือน');
+                }
+            } catch (err) {
+                console.error("CSV Export failed:", err);
+                showCustomAlert('การ Export ล้มเหลว กรุณาลองใหม่อีกครั้ง', 'เกิดข้อผิดพลาด');
+            } finally {
+                exportBtn.innerHTML = originalBtnContent;
+                exportBtn.disabled = false;
+            }
         });
     }
     // ===== END: FIX FOR EVENT LISTENERS =====
