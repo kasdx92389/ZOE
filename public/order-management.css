@@ -314,3 +314,20 @@ textarea {
   justify-content: center;
   gap: 8px;
 }
+/* === START: CUSTOM LAYOUT EXPANSION === */
+
+/* 1. ขยายความกว้างสูงสุดของ Layout หลักทั้งหน้า */
+/* เราจะเปลี่ยนค่า max-width จากเดิม 1024px เป็น 1400px */
+.wrap {
+  max-width: 1200px;
+}
+
+/* 2. กำหนดให้การ์ดใบสุดท้าย (ส่วนของตารางรายการออเดอร์) */
+/* กลับไปมีความกว้างเท่าเดิมและจัดให้อยู่กึ่งกลาง */
+.stack > .card:last-child {
+  max-width: 1024px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* === END: CUSTOM LAYOUT EXPANSION === */
