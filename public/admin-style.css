@@ -240,3 +240,8 @@ select {
         transform: translateY(0);
     }
 }
+/* ===== START: Custom font size for summary buttons ===== */
+#copy-initial-btn,
+#copy-final-btn {
+    font-size: 0.9em; /* ปรับขนาดตัวอักษรได้ตามต้องการ */
+}
