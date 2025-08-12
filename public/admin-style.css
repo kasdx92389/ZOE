@@ -71,6 +71,13 @@ body {
     align-items: flex-end;
 }
 
+/* ===== NEW: Style for button in this specific form ===== */
+.item-form .btn.btn-icon {
+    width: 42px;
+    height: 42px;
+}
+/* ======================================================= */
+
 .form-group {
     display: flex;
     flex-direction: column;
@@ -125,23 +132,12 @@ button {
     cursor: pointer;
     height: 42px;
     border: none;
+    border-radius: 12px;
     transition: background-color 0.2s;
 }
 
 button:hover:not(:disabled) {
     background-color: #5848d9;
-}
-
-button.add-btn {
-    width: 42px;
-    font-size: 18px;
-    padding: 0;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1;
-    padding-bottom: 2px;
 }
 
 button:disabled {

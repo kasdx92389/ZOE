@@ -129,7 +129,16 @@ textarea {
 .btn.primary:hover { background: #4338ca; color: #fff; }
 .btn.ghost { background: transparent; border: 1px solid transparent; }
 .btn.ghost:hover { background: var(--bg-subtle); }
-.btn.icon-btn { padding: 0; width: 40px; font-size: 22px; }
+.btn.icon-btn { padding: 0; width: 40px; }
+
+/* ===== NEW: Make add button compact and consistent ===== */
+#btn-add-item.icon-btn {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+}
+/* ======================================================= */
+
 .actions { display: flex; gap: 8px; align-items: center; }
 .form-footer {
   display: flex;
@@ -141,7 +150,7 @@ textarea {
 /* --- Specific Rows & Components --- */
 .add-item-row {
   display: grid;
-  grid-template-columns: 1fr 80px 120px 40px;
+  grid-template-columns: 1fr 80px 120px 32px; /* Adjusted column width for new button size */
   gap: 8px;
   align-items: center;
 }
