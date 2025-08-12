@@ -1,4 +1,3 @@
-// --- Imports ---
 const express = require('express');
 const path = require('path');
 const session = require('express-session');
@@ -6,15 +5,18 @@ const bcrypt = require('bcrypt');
 const pgPool = require('./database.js');
 const PgSession = require('connect-pg-simple')(session);
 
-// --- App Initialization ---
 const app = express();
 const PORT = 3000;
 
-// --- Constants ---
+// ++ FINAL FIX: Trust the reverse proxy on Render ++
+// This is crucial for secure cookies to work correctly in production.
+app.set('trust proxy', 1);
+
+// --- ค่าคงที่ ---
 const MASTER_CODE = 'KESU-SECRET-2025';
 const saltRounds = 10;
 
-// --- Database Wrapper (to mimic better-sqlite3 for consistency) ---
+// --- Database wrapper ---
 const db = {
     prepare: (sql) => {
         let paramIndex = 1;
@@ -34,10 +36,10 @@ const db = {
         }
     },
     exec: async (sql) => await pgPool.query(sql),
-    transaction: (fn) => fn // Transactions are handled manually with pgPool client
+    transaction: (fn) => fn
 };
 
-// --- User Data Loading ---
+// --- โหลดข้อมูลผู้ใช้ ---
 let users = {};
 const loadUsers = async () => {
     try {
@@ -53,11 +55,11 @@ const loadUsers = async () => {
 };
 loadUsers();
 
-// --- Core Middlewares ---
+// --- Middleware ---
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// --- Session Middleware ---
+// --- Session configuration ---
 app.use(session({
     store: new PgSession({
         pool: pgPool,
@@ -67,16 +69,16 @@ app.use(session({
     resave: false,
     saveUninitialized: false,
     cookie: {
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        maxAge: 30 * 24 * 60 * 60 * 1000,
         secure: process.env.NODE_ENV === 'production',
         httpOnly: true
     }
 }));
 
-// --- Static File Middleware ---
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- Authentication Middleware ---
+// (ส่วนที่เหลือของโค้ดทั้งหมดเหมือนเดิมทุกประการ)
+// ... The rest of the file ...
 const requireLogin = (req, res, next) => {
     if (req.session.userId) {
         next();
@@ -85,11 +87,7 @@ const requireLogin = (req, res, next) => {
     }
 };
 
-
-// ====================================================================
-// --- PAGE & AUTHENTICATION ROUTES ---
-// ====================================================================
-
+// --- Public & Auth Routes ---
 app.get('/', (req, res) => {
     if (req.session.userId) {
         res.redirect('/admin/home');
@@ -98,6 +96,8 @@ app.get('/', (req, res) => {
     }
 });
 
+// REMOVED TEMPORARY SETUP ROUTE FOR PRODUCTION
+
 app.get('/register', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin-register.html'));
 });
@@ -105,6 +105,7 @@ app.get('/register', (req, res) => {
 app.get('/terms', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'terms.html'));
 });
+
 
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
@@ -138,10 +139,8 @@ app.get('/logout', (req, res) => {
     });
 });
 
-// ====================================================================
-// --- ADMIN PANEL ROUTES ---
-// ====================================================================
 
+// --- Admin Routes ---
 app.get('/admin/home', requireLogin, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'homepage.html'));
 });
@@ -157,18 +156,14 @@ app.get('/admin/packages', requireLogin, (req, res) => {
         res.sendFile(path.join(__dirname, 'public', 'games-dashboard.html'));
     }
 });
-
 app.get('/admin/zoe-management', requireLogin, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'order-management.html'));
 });
 
 
-// ====================================================================
-// --- API ROUTES ---
-// ====================================================================
-
+// --- API Endpoints ---
 app.use('/api', requireLogin);
-
+// ... (The rest of the API routes are correct and included below)
 // --- General Data API ---
 app.get('/api/dashboard-data', async (req, res) => {
     try {
@@ -309,8 +304,6 @@ app.post('/api/packages/bulk-actions', async (req, res) => {
             params.push(ids);
             const sql = `UPDATE packages SET ${setClauses.join(', ')} WHERE id = ANY($${paramIndex}::int[])`;
             await client.query(sql, params);
-        } else {
-             // Handle other specific bulk actions if necessary
         }
         
         await client.query('COMMIT');
