@@ -13,6 +13,7 @@
             background-color: var(--background-color); 
             color: var(--text-body); 
             margin: 0;
+            -webkit-font-smoothing: antialiased;
         }
         .container { 
             max-width: 1200px; 
@@ -72,12 +73,12 @@
                 <a href="/admin/home" class="btn btn-icon" title="Back to Home" style="border-radius: 10px;">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M10.354 4.646a.5.5 0 0 1 0 .708L6.707 8l3.647 3.646a.5.5 0 0 1-.708.708l-4-4a.5.5 0 0 1 0-.708l4-4a.5.5 0 0 1 .708 0z"></path></svg>
                 </a>
-                <button id="arrange-games-btn" class="btn btn-icon" title="Arrange Games" style="color: var(--primary-color); border-color: var(--primary-color);">
+                <button id="arrange-games-btn" class="btn btn-icon btn-outline-primary" title="Arrange Games">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
                     </svg>
                 </button>
-                <button id="add-new-game-btn" class="btn btn-primary">Add New Game</button>
+                <button id="add-new-game-btn" class="btn btn-primary btn-icon" title="Add New Game" style="font-size: 1.5rem; line-height: 1; border-radius: 12px;">+</button>
             </div>
         </header>
 
@@ -196,7 +197,7 @@
                 renderGrid() {
                     this.elements.grid.innerHTML = '';
                     if (this.currentGamesOrder.length === 0) {
-                        this.elements.grid.innerHTML = '<p class="loading-text">ยังไม่มีเกมในระบบ กด "Add New Game" เพื่อเริ่มต้น</p>';
+                        this.elements.grid.innerHTML = '<p class="loading-text">ยังไม่มีเกมในระบบ กด "+" เพื่อเริ่มต้น</p>';
                         return;
                     }
                     this.currentGamesOrder.forEach(game => {

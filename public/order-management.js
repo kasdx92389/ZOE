@@ -5,14 +5,12 @@
     items: [],
     editingOrderId: null,
     allOrders: [],
-    validPlatforms: [], // [NEW] To store the standard platform list
+    validPlatforms: [],
   };
 
-  // --- Element Selectors ---
   const el = id => document.getElementById(id);
   const qs = s => document.querySelector(s);
 
-  // --- Custom Dialog Functions ---
   const dialog = {
     overlay: el('custom-dialog-overlay'),
     title: el('dialog-title'),
@@ -44,8 +42,6 @@
     });
   }
 
-
-  // --- Formatters & Helpers ---
   const fmt = n => Number(n || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const uniq = arr => [...new Set(arr.filter(Boolean))].sort();
 
@@ -57,7 +53,6 @@
     return 'status-cancelled';
   }
 
-  // --- UI Update Functions ---
   function updateFormUI(mode = 'new', order = null) {
     el('order-form').dataset.mode = mode;
     state.editingOrderId = order ? order.order_number : null;
@@ -66,7 +61,7 @@
       el('form-title').textContent = `แก้ไขออเดอร์: ${order.order_number}`;
       el('btn-save').textContent = 'อัปเดตข้อมูล';
     } else {
-      el('form-title').textContent = '';
+      el('form-title').textContent = 'สร้าง/แก้ไขออเดอร์';
       el('btn-save').textContent = 'บันทึกออเดอร์';
     }
     qs('#orders-table .selected')?.classList.remove('selected');
@@ -79,11 +74,11 @@
     el('order-form').reset();
     const today = new Date();
     const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0'); // getMonth() เริ่มจาก 0 เลยต้อง +1
+    const month = String(today.getMonth() + 1).padStart(2, '0');
     const day = String(today.getDate()).padStart(2, '0');
     el('order-date').value = `${year}-${month}-${day}`;
     state.items = [];
-    fillSelect(el('platform'), state.validPlatforms, '— เลือกแพลตฟอร์ม —'); // [MODIFIED] Reset platform dropdown
+    fillSelect(el('platform'), state.validPlatforms, '— เลือกแพลตฟอร์ม —');
     renderItems();
     updateFormUI('new');
     el('save-result').textContent = '';
@@ -129,7 +124,6 @@
       </tr>`).join('');
   }
 
-  // --- Calculation & Data Functions ---
   function calcProfit() {
     const total = Number(el('total-paid').value || 0);
     const cost = Number(el('cost').value || 0);
@@ -159,25 +153,21 @@
   }
   
   function refillPackageOptions() {
-  const gameSelect = el('game-select');
-  const packageSelect = el('add-item-package');
-  const game = gameSelect.value;
+    const gameSelect = el('game-select');
+    const packageSelect = el('add-item-package');
+    const game = gameSelect.value;
 
-  // 1. ล็อก/ปลดล็อกช่องเลือกแพ็กเกจ
-  packageSelect.disabled = !game;
+    packageSelect.disabled = !game;
+    const list = game ? state.packages.filter(p => p.game_association === game) : [];
 
-  // 2. แสดงรายการแพ็กเกจเฉพาะเกมที่เลือก (ถ้ามี)
-  const list = game ? state.packages.filter(p => p.game_association === game) : []; // ถ้าไม่เลือกเกม ให้เป็น array ว่าง
+    packageSelect.innerHTML = '<option value="">— เลือกแพ็กเกจ —</option>' + list.map(p => {
+      const label = `${p.name} (${p.product_code || 'N/A'})`;
+      return `<option value="${p.id}" data-price="${p.price || 0}" data-type="${p.type || ''}" data-channel="${p.channel || ''}">${label}</option>`;
+    }).join('');
 
-  packageSelect.innerHTML = '<option value="">— เลือกเกมก่อน —</option>' + list.map(p => {
-    const label = `${p.name} (${p.product_code || 'N/A'})`;
-    return `<option value="${p.id}" data-price="${p.price || 0}" data-type="${p.type || ''}" data-channel="${p.channel || ''}">${label}</option>`;
-  }).join('');
+    fillSelect(el('topup-channel'), uniq(list.map(p => p.channel)), '— เลือกช่องทาง —');
+  }
 
-  fillSelect(el('topup-channel'), uniq(list.map(p => p.channel)), '— เลือกเกมก่อน —');
-}
-
-  // --- API & Event Handlers ---
   async function loadInitialData() {
     const [dashRes, ordersRes] = await Promise.all([
       fetch('/api/dashboard-data'),
@@ -188,9 +178,7 @@
 
     state.packages = dashData.packages || [];
     state.games = dashData.games || [];
-
-    const platforms = ['FACEBOOK', 'LINE'];
-    state.validPlatforms = platforms; // [MODIFIED] Store standard platforms
+    state.validPlatforms = ['FACEBOOK', 'LINE'];
     const statuses = ['รอดำเนินการ', 'รายการสำเร็จ', 'ยกเลิก/คืนเงิน', 'แก้ไขรายการ', 'รายการผิดพลาด'];
 
     fillSelect(el('game-select'), state.games, '— เลือกเกม —');
@@ -292,7 +280,7 @@
   }
 
   async function deleteOrder(orderId) {
-    const confirmed = await showCustomConfirm(`คุณแน่ใจหรือไม่ว่าต้องการลบออเดอร์ ${orderId}?\nการกระทำนี้ไม่สามารถย้อนกลับได้`, 'ยืนยันการลบ');
+    const confirmed = await showCustomConfirm(`คุณแน่ใจหรือไม่ว่าต้องการลบออเดอร์ <strong>${orderId}</strong>?<br>การกระทำนี้ไม่สามารถย้อนกลับได้`, 'ยืนยันการลบ');
     if (!confirmed) return;
 
     const res = await fetch(`/api/orders/${orderId}`, { method: 'DELETE' });
@@ -314,14 +302,12 @@
     
     updateFormUI('edit', orderData);
     
-    // [MODIFIED] Reset platform dropdown to its clean state before setting a value
     fillSelect(el('platform'), state.validPlatforms, '— เลือกแพลตฟอร์ม —');
     
     el('order-date').value = orderData.order_date;
     setIfExists(el('game-select'), orderData.game_name);
     refillPackageOptions();
     
-    // [MODIFIED] Revert to using setIfExists for platform to handle non-standard saved values correctly
     setIfExists(el('platform'), orderData.platform);
     
     setIfExists(el('topup-channel'), orderData.topup_channel);
@@ -340,7 +326,6 @@
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  // --- Initial Setup & Event Listeners ---
   document.addEventListener('DOMContentLoaded', () => {
     resetForm();
     loadInitialData();
@@ -385,10 +370,20 @@
     
     el('cost').addEventListener('input', calcProfit);
     el('total-paid').addEventListener('input', calcProfit);
+    
+    // ===== START: FIX FOR EVENT LISTENERS =====
+    // Remove listeners for buttons that no longer exist
+    // el('btn-new-order').addEventListener('click', resetForm);
+    // el('btn-refresh').addEventListener('click', refreshOrders);
 
-    el('btn-new-order').addEventListener('click', resetForm);
-    el('btn-refresh').addEventListener('click', refreshOrders);
-    el('btn-export-csv').addEventListener('click', () => location.href = '/api/orders/export/csv');
+    // Ensure the export button listener is correctly attached
+    const exportBtn = el('btn-export-csv');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', () => {
+            location.href = '/api/orders/export/csv';
+        });
+    }
+    // ===== END: FIX FOR EVENT LISTENERS =====
     
     el('search-q').addEventListener('input', refreshOrders);
     el('filter-status').addEventListener('change', refreshOrders);

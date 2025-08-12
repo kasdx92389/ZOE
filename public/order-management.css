@@ -71,7 +71,7 @@ html, body {
 .brand { font-size: 20px; font-weight: 700; margin: 0; }
 .topbar, .form-header {
   display: flex;
-  justify-content: space-between; /* ++ เพิ่มบรรทัดนี้ ++ */
+  justify-content: space-between;
   align-items: center;
 }
 
@@ -114,12 +114,12 @@ textarea {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   color: #334155;
   border: 1px solid var(--border);
   background: var(--card);
-  border-radius: 8px;
+  border-radius: 10px;
   height: 40px;
   padding: 0 16px;
   transition: all .2s ease;
@@ -183,11 +183,17 @@ textarea {
 .table .num { text-align: right; }
 .table .key-data { font-weight: 600; color: var(--text); }
 .table.sticky thead th { position: sticky; top: 0; z-index: 1; background-color: #fdfdff; }
+
+/* ===== START: FIX FOR DELETE BUTTON ===== */
 .table .btn-delete-item, .table .btn-delete-order {
   background: transparent; border: none; cursor: pointer;
   color: var(--muted); padding: 4px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
+  position: relative; /* Ensure button is on its own rendering layer */
+  z-index: 2;         /* Lift the button above other cell content */
 }
+/* ===== END: FIX FOR DELETE BUTTON ===== */
+
 .table .btn-delete-item:hover, .table .btn-delete-order:hover {
   background-color: #fee2e2; color: #b91c1c;
 }
@@ -297,5 +303,5 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px; /* เพิ่มระยะห่างระหว่างไอคอนกับข้อความ */
+  gap: 8px;
 }

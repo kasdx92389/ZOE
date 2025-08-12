@@ -35,6 +35,7 @@ body {
     align-items: center;
     min-height: 100vh;
     animation: fadeInPage 0.4s ease-out forwards;
+    overflow: hidden;
 }
 .container {
     width: 100%;

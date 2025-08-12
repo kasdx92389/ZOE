@@ -5,276 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Package Management</title>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="/shared-styles.css">
+    <link rel="stylesheet" href="/pm-styles.css">
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
-    <style>
-        :root {
-            --primary-color: #6366F1;
-            --primary-light: #eef2ff;
-            --success-color: #10b981;
-            --danger-color: #ef4444;
-            --warning-color: #f59e0b;
-            --border-color: #e5e7eb;
-            --background-color: #f9fafb;
-            --card-background: #ffffff;
-            --text-heading: #1f2937;
-            --text-body: #374151;
-            --text-light: #6b7280;
-        }
-
-        *, *::before, *::after { box-sizing: border-box; }
-
-        body {
-            font-family: 'Sarabun', sans-serif;
-            background-color: var(--background-color);
-            color: var(--text-body);
-            margin: 0;
-            -webkit-font-smoothing: antialiased;
-        }
-
-        .container { 
-            width: 100%; 
-            max-width: 1100px;
-            margin: 0 auto;
-            padding: 30px;
-            animation: fadeInPage 0.5s ease-out forwards;
-        }
-
-        .sticky-header {
-            position: sticky;
-            top: 0;
-            background-color: var(--background-color);
-            padding: 12px 0;
-            z-index: 100;
-            transition: box-shadow 0.2s ease-in-out;
-            margin-bottom: 12px;
-        }
-        .sticky-header.scrolled {
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-        }
-
-        .page-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            min-height: 36px;
-        }
-        
-        .header-left, .header-right {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        
-        .select-all-group {
-            display: flex;
-            align-items: center;
-        }
-        .select-all-group label {
-            font-weight: 600;
-            color: var(--text-body);
-            margin-left: 8px;
-            user-select: none;
-            cursor: pointer;
-        }
-
-        .bulk-actions-content {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            transition: opacity 0.3s ease, transform 0.3s ease;
-        }
-        .bulk-actions-content.hidden {
-            opacity: 0;
-            transform: translateY(-10px);
-            pointer-events: none;
-            height: 0;
-            overflow: hidden;
-            padding: 0;
-            margin: 0;
-        }
-
-
-        #edit-actions-left {
-            display: flex;
-            gap: 8px;
-        }
-
-        #add-new-btn {
-            font-weight: 500;
-        }
-
-        .bulk-actions-content .selection-count { font-weight: 600; color: var(--text-body); }
-        .bulk-actions-content .bulk-buttons { display: flex; gap: 10px; }
-        
-        .btn {
-            display: inline-flex; align-items: center; justify-content: center;
-            gap: 8px; font-weight: 600; border: none; cursor: pointer;
-            border-radius: 8px; padding: 10px 16px; font-size: 0.9rem;
-            transition: all 0.2s ease; white-space: nowrap;
-            background-color: #fff; border: 1px solid var(--border-color); color: var(--text-body);
-            position: relative;
-        }
-        .btn:hover:not(:disabled) { background-color: #f9fafb; }
-        .btn-primary { color: #fff; background-color: var(--primary-color); border-color: var(--primary-color); }
-        .btn-primary:hover:not(:disabled) { background-color: #4f46e5; }
-        .btn.btn-danger { color: #fff; background-color: var(--danger-color); border-color: var(--danger-color); }
-        .btn.btn-danger:hover { background-color: #d92626; }
-        .btn.btn-success { color: #fff; background-color: var(--success-color); border-color: var(--success-color); }
-        .btn.btn-success:hover { background-color: #0e9f71; }
-        .btn:disabled { cursor: not-allowed; opacity: 0.6; }
-        
-        .btn.btn-icon { padding: 7px; width: 36px; height: 36px; flex-shrink: 0; }
-        .btn.btn-icon svg { display: block; margin: auto; }
-
-        .btn.btn-loading {
-            opacity: 0.8;
-            pointer-events: none;
-            color: transparent !important;
-        }
-        .btn.btn-loading::after {
-            content: '';
-            position: absolute;
-            width: 20px;
-            height: 20px;
-            top: 50%;
-            left: 50%;
-            margin-top: -10px;
-            margin-left: -10px;
-            border: 3px solid rgba(255, 255, 255, 0.5);
-            border-top-color: #ffffff;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-        .btn:not(.btn-primary).btn-loading::after {
-            border: 3px solid rgba(0, 0, 0, 0.1);
-            border-top-color: var(--primary-color);
-        }
-        
-        #package-grid {
-            padding-top: 12px;
-            display: grid; 
-            grid-template-columns: repeat(auto-fill, 290px);
-            justify-content: center; 
-            align-items: start; 
-            align-content: start;
-            gap: 20px;
-        }
-
-        .package-card {
-            background-color: var(--card-background); border-radius: 12px; border: 1px solid var(--border-color);
-            padding: 16px; transition: all 0.2s ease;
-            display: flex; flex-direction: column; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-            position: relative;
-            min-height: 150px;
-        }
-        .package-card.draggable { cursor: grab; }
-        .package-card.selected-card {
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px var(--primary-light);
-            transform: translateY(-2px);
-        }
-        .card-checkbox { position: absolute; top: 12px; left: 12px; width: 20px; height: 20px; accent-color: var(--primary-color); }
-        .pkg-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; cursor: pointer; padding-left: 28px; }
-        .pkg-name { font-weight: 600; font-size: 1rem; color: var(--text-heading); word-break: break-word; flex-grow: 1; }
-        .pkg-price { font-weight: 700; font-size: 1.1rem; color: var(--primary-color); white-space: nowrap; }
-        .pkg-code { font-size: 0.8rem; color: var(--text-light); margin-top: 4px; margin-bottom: 12px; cursor: pointer; padding-left: 28px; }
-        .pkg-footer { margin-top: auto; display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid var(--border-color); }
-        .pkg-info { display: flex; gap: 8px; align-items: center; }
-        .info-tag { font-size: 0.8rem; font-weight: 600; padding: 4px 10px; border-radius: 16px; background-color: #f3f4f6; color: var(--text-light); }
-        
-        .status-toggle {
-            font-weight: 600; background-color: transparent; border: none; cursor: pointer;
-            padding: 5px; border-radius: 6px; transition: opacity 0.2s ease;
-        }
-        .status-toggle:hover { opacity: 0.7; }
-        .status-toggle.active { color: var(--success-color); }
-        .status-toggle.inactive { color: var(--danger-color); }
-
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-        .modal-content { background-color: var(--card-background); border-radius: 12px; width: 90%; max-width: 600px; display: flex; flex-direction: column; overflow: hidden; }
-        .modal-header { padding: 20px 24px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
-        .modal-header h2 { font-size: 1.25rem; margin: 0; color: var(--text-heading); }
-        .modal-body { padding: 24px; overflow-y: auto; }
-        .modal-footer { padding: 16px 24px; background-color: var(--background-color); border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
-        .close-btn { background: transparent; border: none; cursor: pointer; color: #9ca3af; padding: 4px; display: flex; align-items: center; justify-content: center; }
-        .close-btn:hover { color: var(--text-body); }
-        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .form-group { display: flex; flex-direction: column; }
-        .form-group label { display: block; font-weight: 600; margin-bottom: 8px; font-size: 0.9rem; }
-        .form-group input, .form-group select { width: 100%; height: 42px; padding: 0 12px; border-radius: 8px; border: 1px solid #d1d5db; font-size: 1rem; }
-        .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 3px var(--primary-light); }
-        
-        .modal-section { margin-bottom: 24px; }
-        .modal-section:last-child { margin-bottom: 0; }
-        .modal-section-title { font-size: 1.1rem; font-weight: 700; color: var(--text-heading); margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border-color); }
-        .individual-edit-container { max-height: 280px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; padding: 8px; background-color: var(--background-color); }
-        .individual-edit-grid { display: grid; grid-template-columns: 1fr 80px 80px; align-items: center; gap: 5px; padding: 2px 4px; margin-bottom: 2px; }
-        .individual-edit-grid .grid-header { font-weight: 600; color: var(--text-light); font-size: 0.8rem; text-transform: uppercase; padding-bottom: 8px; }
-        .individual-edit-grid input { height: 38px; border-radius: 5px; border: 1px solid var(--border-color); padding: 0px 12px; }
-        .modal-divider { border: 0; height: 1px; background-color: var(--border-color); margin: 24px 0; }
-        .individual-edit-grid input[type="number"] { text-align: right; }
-
-        .order-item { padding: 12px 16px; background-color: white; border: 1px solid var(--border-color); border-radius: 6px; cursor: grab; user-select: none; font-weight: 500; font-size: 1rem; margin-bottom: 8px; }
-        .sortable-ghost { background: var(--primary-light); opacity: 0.6; }
-        .toast { position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 8px; color: #fff; font-weight: 600; box-shadow: 0 4px 20px rgba(0,0,0,0.15); transition: bottom 0.5s ease; z-index: 2000; }
-        .toast.show { bottom: 20px; }
-        .toast.success { background-color: var(--success-color); }
-        .toast.error { background-color: var(--danger-color); }
-        
-        .hidden { display: none; }
-        
-        @keyframes fadeInPage {
-            from { opacity: 0; transform: translateY(15px); }
-            to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        input[type=number]::-webkit-inner-spin-button,
-        input[type=number]::-webkit-outer-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
-        }
-        input[type=number] {
-            -moz-appearance: textfield;
-        }
-
-        .modal-overlay {
-            padding: 24px;
-            box-sizing: border-box;
-        }
-
-        .modal-content {
-            max-height: 85vh;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-            .modal-body {
-            overflow: auto;
-            min-height: 0;
-        }
-
-        .modal-header {
-            position: sticky;
-            top: 0;
-            background: var(--card-background);
-            z-index: 1;
-        }
-        .modal-footer {
-            position: sticky;
-            bottom: 0;
-            background: var(--card-background);
-            z-index: 1;
-        }
-
-        @media (max-width: 640px) {
-        .modal-content { width: 94vw; max-height: 90vh; }
-}
-
-    </style>
 </head>
 <body>
 
@@ -305,18 +40,20 @@
                     </div>
                 </div>
                 <div class="header-right">
+                    <a href="/admin/packages" class="btn btn-icon" title="Back to Games">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M10.354 4.646a.5.5 0 0 1 0 .708L6.707 8l3.647 3.646a.5.5 0 0 1-.708.708l-4-4a.5.5 0 0 1 0-.708l4-4a.5.5 0 0 1 .708 0z"></path></svg>
+                    </a>
+    
                     <button id="arrange-packages-btn" class="btn btn-icon" title="Arrange" style="color: var(--primary-color); border-color: var(--primary-color);">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
                             <path d="M2 17l10 5 10-5"></path>
                             <path d="M2 12l10 5 10-5"></path>
                         </svg>
-                    </button>
-                    <a href="/admin/packages" class="btn btn-icon" title="Back to Games">
-                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M10.354 4.646a.5.5 0 0 1 0 .708L6.707 8l3.647 3.646a.5.5 0 0 1-.708.708l-4-4a.5.5 0 0 1 0-.708l4-4a.5.5 0 0 1 .708 0z"></path></svg>
-                    </a>
-                    <button id="add-new-btn" class="btn btn-primary btn-icon" title="Add New Package" style="font-size: 1.5rem; line-height: 1; border-radius: 12px;">+</button>
-                </div>
+                </button>
+    
+                <button id="add-new-btn" class="btn btn-primary btn-icon" title="Add New Package" style="font-size: 1.5rem; line-height: 1; border-radius: 12px;">+</button>
+            </div>
             </header>
         </div>
 

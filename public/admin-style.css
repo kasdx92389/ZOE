@@ -25,17 +25,17 @@ body {
     background-color: var(--background-color);
     color: var(--text-color);
     margin: 0;
-    animation: fadeInPage 0.4s ease-out forwards; /* << เพิ่มบรรทัดนี้ */
+    animation: fadeInPage 0.4s ease-out forwards;
 }
 
 /* --- Layout Containers --- */
 .container {
     max-width: 700px;
-    margin: 40px auto;
+    margin: 20px auto; /* Adjusted: ลดระยะห่างบน-ล่าง */
     padding: 20px;
     display: flex;
     flex-direction: column;
-    min-height: calc(100vh - 80px);
+    min-height: calc(100vh - 40px); /* Adjusted: ปรับความสูงขั้นต่ำ */
 }
 
 .card {
@@ -49,7 +49,7 @@ body {
 }
 
 .section {
-    margin-bottom: 24px;
+    margin-bottom: 16px; /* Adjusted: ลดระยะห่างระหว่าง Section */
 }
 .section:last-child {
     margin-bottom: 0;
@@ -58,7 +58,7 @@ body {
 .section-title {
     font-size: 1.1em;
     font-weight: 700;
-    margin-bottom: 16px;
+    margin-bottom: 12px; /* Adjusted: ลดระยะห่าง */
     padding-bottom: 8px;
     border-bottom: none;
 }
@@ -109,7 +109,8 @@ input:focus, select:focus, textarea:focus {
 }
 
 textarea {
-    min-height: 150px;
+    height: 120px; /* Adjusted: กำหนดความสูงให้ลดลง */
+    min-height: 100px; /* Adjusted: ลดความสูงขั้นต่ำ */
     padding: 12px;
     resize: vertical;
     margin-bottom: 12px;
@@ -133,13 +134,14 @@ button:hover:not(:disabled) {
 
 button.add-btn {
     width: 42px;
-    font-size: 15px;
+    font-size: 18px;
     padding: 0;
     font-weight: 600;
     display: flex;
     align-items: center;
     justify-content: center;
-    line-height: 0;
+    line-height: 1;
+    padding-bottom: 2px;
 }
 
 button:disabled {
@@ -152,7 +154,7 @@ button:disabled {
 #current-order-list .placeholder {
     text-align: center;
     color: var(--grey-text);
-    padding: 20px;
+    padding: 16px; /* Adjusted: ลด Padding */
     background-color: transparent;
     border-radius: 12px;
     border: 2px dashed #e0e0e0;
@@ -222,21 +224,13 @@ button:disabled {
     display: none;
 }
 select {
-    /* ซ่อนลูกศรเริ่มต้นของเบราว์เซอร์ */
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
-    
-    /* เพิ่มลูกศรใหม่เป็นภาพพื้นหลัง */
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236B7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.8' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
     background-repeat: no-repeat;
     background-size: 1em 1em;
-    
-    /* --- จุดสำคัญ: ปรับตำแหน่งลูกศร --- */
-    /* ปรับค่า 1rem เพื่อขยับลูกศรให้ห่างจากขอบขวา */
     background-position: right 0.6rem center; 
-    
-    /* เพิ่มช่องว่างด้านขวา กันไม่ให้ข้อความทับลูกศร */
     padding-right: 2rem;
 }
 /* --- Page Load Animation --- */
