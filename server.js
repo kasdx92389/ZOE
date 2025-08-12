@@ -1,3 +1,4 @@
+// --- Imports ---
 const express = require('express');
 const path = require('path');
 const session = require('express-session');
@@ -5,14 +6,15 @@ const bcrypt = require('bcrypt');
 const pgPool = require('./database.js');
 const PgSession = require('connect-pg-simple')(session);
 
+// --- App Initialization ---
 const app = express();
 const PORT = 3000;
 
-// --- ค่าคงที่ ---
+// --- Constants ---
 const MASTER_CODE = 'KESU-SECRET-2025';
 const saltRounds = 10;
 
-// --- Database wrapper ---
+// --- Database Wrapper (to mimic better-sqlite3 for consistency) ---
 const db = {
     prepare: (sql) => {
         let paramIndex = 1;
@@ -32,10 +34,10 @@ const db = {
         }
     },
     exec: async (sql) => await pgPool.query(sql),
-    transaction: (fn) => fn
+    transaction: (fn) => fn // Transactions are handled manually with pgPool client
 };
 
-// --- โหลดข้อมูลผู้ใช้ ---
+// --- User Data Loading ---
 let users = {};
 const loadUsers = async () => {
     try {
@@ -51,11 +53,11 @@ const loadUsers = async () => {
 };
 loadUsers();
 
-// --- Middleware ---
+// --- Core Middlewares ---
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// --- Session configuration ---
+// --- Session Middleware ---
 app.use(session({
     store: new PgSession({
         pool: pgPool,
@@ -65,16 +67,16 @@ app.use(session({
     resave: false,
     saveUninitialized: false,
     cookie: {
-        maxAge: 30 * 24 * 60 * 60 * 1000,
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
         secure: process.env.NODE_ENV === 'production',
         httpOnly: true
     }
 }));
 
-// --- FIXED: Serve static files from the 'public' directory ---
+// --- Static File Middleware ---
 app.use(express.static(path.join(__dirname, 'public')));
 
-
+// --- Authentication Middleware ---
 const requireLogin = (req, res, next) => {
     if (req.session.userId) {
         next();
@@ -83,13 +85,15 @@ const requireLogin = (req, res, next) => {
     }
 };
 
-// --- Public & Auth Routes ---
-// --- FIXED: All res.sendFile paths now point to the 'public' directory ---
+
+// ====================================================================
+// --- PAGE & AUTHENTICATION ROUTES ---
+// ====================================================================
+
 app.get('/', (req, res) => {
     if (req.session.userId) {
         res.redirect('/admin/home');
     } else {
-        // index.html and admin-login.html are the same, so we point to one.
         res.sendFile(path.join(__dirname, 'public', 'index.html')); 
     }
 });
@@ -101,7 +105,6 @@ app.get('/register', (req, res) => {
 app.get('/terms', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'terms.html'));
 });
-
 
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
@@ -135,9 +138,10 @@ app.get('/logout', (req, res) => {
     });
 });
 
+// ====================================================================
+// --- ADMIN PANEL ROUTES ---
+// ====================================================================
 
-// --- Admin Routes ---
-// --- FIXED: All res.sendFile paths now point to the 'public' directory ---
 app.get('/admin/home', requireLogin, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'homepage.html'));
 });
@@ -153,15 +157,19 @@ app.get('/admin/packages', requireLogin, (req, res) => {
         res.sendFile(path.join(__dirname, 'public', 'games-dashboard.html'));
     }
 });
+
 app.get('/admin/zoe-management', requireLogin, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'order-management.html'));
 });
 
 
-// --- API Endpoints ---
+// ====================================================================
+// --- API ROUTES ---
+// ====================================================================
+
 app.use('/api', requireLogin);
 
-// (The rest of the API code is the same and correct)
+// --- General Data API ---
 app.get('/api/dashboard-data', async (req, res) => {
     try {
         const { game } = req.query;
@@ -190,119 +198,7 @@ app.get('/api/dashboard-data', async (req, res) => {
     }
 });
 
-app.post('/api/packages', async (req, res) => {
-    try {
-        const { name, price, product_code, type, channel, game_association } = req.body;
-        if (!name || !price || !type || !channel || !game_association) {
-            return res.status(400).json({ error: 'Missing required fields' });
-        }
-        const result = await db.prepare('INSERT INTO packages (name, price, product_code, type, channel, game_association) VALUES (?, ?, ?, ?, ?, ?) RETURNING id').get(name, price, product_code, type, channel, game_association);
-        res.status(201).json({ id: result.id, message: 'Package created' });
-    } catch (error) {
-        console.error("Error creating package:", error);
-        res.status(500).json({ error: 'Failed to create package' });
-    }
-});
-
-app.put('/api/packages/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { name, price, product_code, type, channel, game_association, is_active } = req.body;
-        const result = await db.prepare('UPDATE packages SET name = ?, price = ?, product_code = ?, type = ?, channel = ?, game_association = ?, is_active = ? WHERE id = ?').run(name, price, product_code, type, channel, game_association, is_active, id);
-        if (result.rowCount === 0) {
-            return res.status(404).json({ error: 'Package not found' });
-        }
-        res.json({ id, message: 'Package updated' });
-    } catch (error) {
-        console.error(`Error updating package ${req.params.id}:`, error);
-        res.status(500).json({ error: 'Failed to update package' });
-    }
-});
-
-app.delete('/api/packages/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-        const result = await db.prepare('DELETE FROM packages WHERE id = ?').run(id);
-        if (result.rowCount === 0) {
-            return res.status(404).json({ error: 'Package not found' });
-        }
-        res.status(200).json({ message: 'Package deleted' });
-    } catch (error) {
-        console.error(`Error deleting package ${req.params.id}:`, error);
-        res.status(500).json({ error: 'Failed to delete package' });
-    }
-});
-
-app.post('/api/packages/order', async (req, res) => {
-    const { order } = req.body;
-    if (!Array.isArray(order)) {
-        return res.status(400).json({ error: 'Invalid order data' });
-    }
-    const client = await pgPool.connect();
-    try {
-        await client.query('BEGIN');
-        const updateStmt = 'UPDATE packages SET sort_order = $1 WHERE id = $2';
-        for (const [index, id] of order.entries()) {
-            await client.query(updateStmt, [index, id]);
-        }
-        await client.query('COMMIT');
-        res.json({ ok: true, message: 'Package order updated' });
-    } catch (error) {
-        await client.query('ROLLBACK');
-        console.error("Error updating package order:", error);
-        res.status(500).json({ error: 'Failed to update package order' });
-    } finally {
-        client.release();
-    }
-});
-
-app.post('/api/packages/bulk-actions', async (req, res) => {
-    const { action, ids, updates, status, priceUpdates, nameUpdates, codeUpdates } = req.body;
-    if (!action || !Array.isArray(ids) || ids.length === 0) {
-        return res.status(400).json({ error: 'Invalid request' });
-    }
-    const client = await pgPool.connect();
-    try {
-        await client.query('BEGIN');
-        if (action === 'delete') {
-            await client.query(`DELETE FROM packages WHERE id = ANY($1::int[])`, [ids]);
-        } else if (action === 'updateStatus') {
-            await client.query(`UPDATE packages SET is_active = $1 WHERE id = ANY($2::int[])`, [status, ids]);
-        } else if (action === 'bulkEdit' && updates) {
-            const setClauses = [];
-            const params = [];
-            let paramIndex = 1;
-            for (const key in updates) {
-                setClauses.push(`${key} = $${paramIndex++}`);
-                params.push(updates[key]);
-            }
-            params.push(ids);
-            const sql = `UPDATE packages SET ${setClauses.join(', ')} WHERE id = ANY($${paramIndex}::int[])`;
-            await client.query(sql, params);
-        } else if (action === 'setIndividualPrices' && priceUpdates) {
-            for (const p of priceUpdates) {
-                await client.query('UPDATE packages SET price = $1 WHERE id = $2', [p.newPrice, p.id]);
-            }
-        } else if (action === 'setIndividualNames' && nameUpdates) {
-             for (const p of nameUpdates) {
-                await client.query('UPDATE packages SET name = $1 WHERE id = $2', [p.newName, p.id]);
-            }
-        } else if (action === 'setIndividualCodes' && codeUpdates) {
-            for (const p of codeUpdates) {
-                await client.query('UPDATE packages SET product_code = $1 WHERE id = $2', [p.newCode, p.id]);
-            }
-        }
-        await client.query('COMMIT');
-        res.json({ ok: true, message: 'Bulk action successful' });
-    } catch (error) {
-        await client.query('ROLLBACK');
-        console.error('Bulk action error:', error);
-        res.status(500).json({ error: 'Failed to perform bulk action' });
-    } finally {
-        client.release();
-    }
-});
-
+// --- Game Order API ---
 app.get('/api/games/order', async (req, res) => {
     try {
         let orderedGames = [];
@@ -310,10 +206,7 @@ app.get('/api/games/order', async (req, res) => {
         if (config && config.value) {
             orderedGames = JSON.parse(config.value);
         }
-        const allDbGames = (await db.prepare("SELECT DISTINCT game_association FROM packages").all()).map(g => g.game_association);
-        const newGames = allDbGames.filter(g => !orderedGames.includes(g)).sort();
-        const finalSortedGames = [...orderedGames, ...newGames];
-        res.json(finalSortedGames);
+        res.json(orderedGames);
     } catch (error) {
         console.error("Error fetching game order:", error);
         res.status(500).json({ error: 'Failed to retrieve game order' });
@@ -335,11 +228,109 @@ app.post('/api/games/order', async (req, res) => {
     }
 });
 
+// --- Packages API ---
+app.post('/api/packages', async (req, res) => {
+    try {
+        const { name, price, product_code, type, channel, game_association } = req.body;
+        const result = await db.prepare('INSERT INTO packages (name, price, product_code, type, channel, game_association) VALUES (?, ?, ?, ?, ?, ?) RETURNING id').get(name, price, product_code, type, channel, game_association);
+        res.status(201).json({ id: result.id, message: 'Package created' });
+    } catch (error) {
+        console.error("Error creating package:", error);
+        res.status(500).json({ error: 'Failed to create package' });
+    }
+});
+
+app.put('/api/packages/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, price, product_code, type, channel, game_association, is_active } = req.body;
+        const result = await db.prepare('UPDATE packages SET name = ?, price = ?, product_code = ?, type = ?, channel = ?, game_association = ?, is_active = ? WHERE id = ?').run(name, price, product_code, type, channel, game_association, is_active, id);
+        if (result.rowCount === 0) return res.status(404).json({ error: 'Package not found' });
+        res.json({ id, message: 'Package updated' });
+    } catch (error) {
+        console.error(`Error updating package ${req.params.id}:`, error);
+        res.status(500).json({ error: 'Failed to update package' });
+    }
+});
+
+app.delete('/api/packages/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await db.prepare('DELETE FROM packages WHERE id = ?').run(id);
+        if (result.rowCount === 0) return res.status(404).json({ error: 'Package not found' });
+        res.status(200).json({ message: 'Package deleted' });
+    } catch (error) {
+        console.error(`Error deleting package ${req.params.id}:`, error);
+        res.status(500).json({ error: 'Failed to delete package' });
+    }
+});
+
+app.post('/api/packages/order', async (req, res) => {
+    const { order } = req.body;
+    if (!Array.isArray(order)) return res.status(400).json({ error: 'Invalid order data' });
+    
+    const client = await pgPool.connect();
+    try {
+        await client.query('BEGIN');
+        for (const [index, id] of order.entries()) {
+            await client.query('UPDATE packages SET sort_order = $1 WHERE id = $2', [index, id]);
+        }
+        await client.query('COMMIT');
+        res.json({ ok: true, message: 'Package order updated' });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error("Error updating package order:", error);
+        res.status(500).json({ error: 'Failed to update package order' });
+    } finally {
+        client.release();
+    }
+});
+
+app.post('/api/packages/bulk-actions', async (req, res) => {
+    const { action, ids, updates } = req.body;
+    if (!action || !Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'Invalid request' });
+
+    const client = await pgPool.connect();
+    try {
+        await client.query('BEGIN');
+
+        if (action === 'delete') {
+            await client.query(`DELETE FROM packages WHERE id = ANY($1::int[])`, [ids]);
+        } else if (action === 'updateStatus') {
+            await client.query(`UPDATE packages SET is_active = $1 WHERE id = ANY($2::int[])`, [req.body.status, ids]);
+        } else if (action === 'bulkEdit' && updates) {
+            const setClauses = [];
+            const params = [];
+            let paramIndex = 1;
+            for (const key in updates) {
+                setClauses.push(`${key} = $${paramIndex++}`);
+                params.push(updates[key]);
+            }
+            params.push(ids);
+            const sql = `UPDATE packages SET ${setClauses.join(', ')} WHERE id = ANY($${paramIndex}::int[])`;
+            await client.query(sql, params);
+        } else {
+             // Handle other specific bulk actions if necessary
+        }
+        
+        await client.query('COMMIT');
+        res.json({ ok: true, message: 'Bulk action successful' });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Bulk action error:', error);
+        res.status(500).json({ error: 'Failed to perform bulk action' });
+    } finally {
+        client.release();
+    }
+});
+
+// --- Orders API ---
 app.get('/api/orders', async (req, res) => {
     const { q = '', status = '', platform = '', limit = 200 } = req.query;
     let sql = `SELECT * FROM orders WHERE 1=1`;
     const params = [];
     let paramIndex = 1;
+
     if (q) {
         sql += ` AND (order_number ILIKE $${paramIndex++} OR customer_name ILIKE $${paramIndex++})`;
         params.push(`%${q}%`, `%${q}%`);
@@ -354,6 +345,7 @@ app.get('/api/orders', async (req, res) => {
     }
     sql += ` ORDER BY created_at DESC LIMIT $${paramIndex++}`;
     params.push(Number(limit));
+
     try {
         const ordersResult = await pgPool.query(sql, params);
         const orders = ordersResult.rows;
@@ -379,35 +371,27 @@ function genOrderNumber() {
 }
 
 app.post('/api/orders', async (req, res) => {
-    const b = req.body || {};
+    const b = req.body;
     const client = await pgPool.connect();
     try {
         await client.query('BEGIN');
         const orderNumber = genOrderNumber();
-        const orderDate = b.order_date || new Date().toISOString().slice(0, 10);
         const totalPaid = Number(b.total_paid || 0);
         const cost = Number(b.cost || 0);
         const profit = totalPaid - cost;
-        const packagesText = Array.isArray(b.items) && b.items.length ? b.items.map(it => `${it.package_name} x${it.quantity}`).join(', ') : '';
-        const packageCount = Array.isArray(b.items) ? b.items.reduce((a, c) => a + Number(c.quantity || 0), 0) : 0;
-        const orderQuery = `INSERT INTO orders(
-            order_number, order_date, platform, customer_name, game_name,
-            total_paid, payment_proof_url, sales_proof_url, product_code, package_count,
-            packages_text, cost, profit, status, operator, topup_channel, note
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`;
-        const orderResult = await client.query(orderQuery, [
-            orderNumber, orderDate, b.platform || '', b.customer_name || '', b.game_name || '',
-            totalPaid, b.payment_proof_url || '', b.sales_proof_url || '', b.product_code || '', packageCount,
-            packagesText, cost, profit, b.status || 'รอดำเนินการ', b.operator || '', b.topup_channel || '', b.note || ''
-        ]);
+        const packagesText = b.items?.map(it => `${it.package_name} x${it.quantity}`).join(', ') || '';
+        const packageCount = b.items?.reduce((a, c) => a + Number(c.quantity || 0), 0) || 0;
+
+        const orderQuery = `INSERT INTO orders(order_number, order_date, platform, customer_name, game_name, total_paid, payment_proof_url, sales_proof_url, product_code, package_count, packages_text, cost, profit, status, operator, topup_channel, note) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`;
+        const orderResult = await client.query(orderQuery, [orderNumber, b.order_date, b.platform, b.customer_name, b.game_name, totalPaid, b.payment_proof_url, b.sales_proof_url, b.product_code, packageCount, packagesText, cost, profit, b.status, b.operator, b.topup_channel, b.note]);
         const orderId = orderResult.rows[0].id;
+        
         if (Array.isArray(b.items) && b.items.length > 0) {
             const itemQuery = `INSERT INTO order_items(order_id, package_id, package_name, product_code, quantity, unit_price, cost, total_price) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`;
             for (const it of b.items) {
                 const qty = Number(it.quantity || 1);
                 const unit = Number(it.unit_price || 0);
-                const costIt = Number(it.cost || 0);
-                await client.query(itemQuery, [orderId, it.package_id || null, it.package_name || '', it.product_code || '', qty, unit, costIt, qty * unit]);
+                await client.query(itemQuery, [orderId, it.package_id, it.package_name, it.product_code, qty, unit, it.cost || 0, qty * unit]);
             }
         }
         await client.query('COMMIT');
@@ -423,39 +407,29 @@ app.post('/api/orders', async (req, res) => {
 
 app.put('/api/orders/:orderNumber', async (req, res) => {
     const { orderNumber } = req.params;
-    const b = req.body || {};
+    const b = req.body;
     const client = await pgPool.connect();
     try {
         await client.query('BEGIN');
         const orderResult = await client.query('SELECT id FROM orders WHERE order_number = $1', [orderNumber]);
-        if (orderResult.rows.length === 0) {
-            throw new Error('OrderNotFound');
-        }
+        if (orderResult.rows.length === 0) throw new Error('OrderNotFound');
+        
         const numericId = orderResult.rows[0].id;
         const totalPaid = Number(b.total_paid || 0);
         const cost = Number(b.cost || 0);
         const profit = totalPaid - cost;
-        const packagesText = Array.isArray(b.items) && b.items.length ? b.items.map(it => `${it.package_name} x${it.quantity}`).join(', ') : '';
-        const packageCount = Array.isArray(b.items) ? b.items.reduce((a, c) => a + Number(c.quantity || 0), 0) : 0;
-        await client.query(`UPDATE orders SET
-            order_date=$1, platform=$2, customer_name=$3, game_name=$4, total_paid=$5,
-            payment_proof_url=$6, sales_proof_url=$7, product_code=$8, package_count=$9, packages_text=$10,
-            cost=$11, profit=$12, status=$13, operator=$14, topup_channel=$15, note=$16
-            WHERE id=$17`,
-            [
-                b.order_date, b.platform, b.customer_name, b.game_name, totalPaid,
-                b.payment_proof_url, b.sales_proof_url, b.product_code, packageCount, packagesText,
-                cost, profit, b.status, b.operator, b.topup_channel, b.note, numericId
-            ]
-        );
+        const packagesText = b.items?.map(it => `${it.package_name} x${it.quantity}`).join(', ') || '';
+        const packageCount = b.items?.reduce((a, c) => a + Number(c.quantity || 0), 0) || 0;
+
+        await client.query(`UPDATE orders SET order_date=$1, platform=$2, customer_name=$3, game_name=$4, total_paid=$5, payment_proof_url=$6, sales_proof_url=$7, product_code=$8, package_count=$9, packages_text=$10, cost=$11, profit=$12, status=$13, operator=$14, topup_channel=$15, note=$16 WHERE id=$17`, [b.order_date, b.platform, b.customer_name, b.game_name, totalPaid, b.payment_proof_url, b.sales_proof_url, b.product_code, packageCount, packagesText, cost, profit, b.status, b.operator, b.topup_channel, b.note, numericId]);
+        
         await client.query('DELETE FROM order_items WHERE order_id = $1', [numericId]);
         if (Array.isArray(b.items) && b.items.length > 0) {
             const itemQuery = `INSERT INTO order_items(order_id, package_id, package_name, product_code, quantity, unit_price, cost, total_price) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`;
             for (const newItem of b.items) {
                 const qty = Number(newItem.quantity || 1);
                 const unit = Number(newItem.unit_price || 0);
-                const costIt = Number(newItem.cost || 0);
-                await client.query(itemQuery, [numericId, newItem.package_id || null, newItem.package_name || '', newItem.product_code || '', qty, unit, costIt, qty * unit]);
+                await client.query(itemQuery, [numericId, newItem.package_id, newItem.package_name, newItem.product_code, qty, unit, newItem.cost || 0, qty * unit]);
             }
         }
         await client.query('COMMIT');
@@ -463,9 +437,7 @@ app.put('/api/orders/:orderNumber', async (req, res) => {
     } catch (e) {
         await client.query('ROLLBACK');
         console.error(`Update order error for ${orderNumber}:`, e);
-        if (e.message === 'OrderNotFound') {
-            return res.status(404).json({ error: 'Order not found' });
-        }
+        if (e.message === 'OrderNotFound') return res.status(404).json({ error: 'Order not found' });
         res.status(500).json({ error: 'Failed to update order' });
     } finally {
         client.release();
@@ -476,9 +448,7 @@ app.delete('/api/orders/:orderNumber', async (req, res) => {
     const { orderNumber } = req.params;
     try {
         const result = await db.prepare('DELETE FROM orders WHERE order_number = ?').run(orderNumber);
-        if (result.rowCount === 0) {
-            return res.status(404).json({ error: 'Order not found, nothing to delete.' });
-        }
+        if (result.rowCount === 0) return res.status(404).json({ error: 'Order not found, nothing to delete.' });
         res.json({ ok: true, message: `Order ${orderNumber} and its items were deleted.` });
     } catch (e) {
         console.error(`Delete order error for ${orderNumber}:`, e);
@@ -486,10 +456,6 @@ app.delete('/api/orders/:orderNumber', async (req, res) => {
     }
 });
 
-// Fallback for any unhandled routes
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
 
-
+// --- Server Start ---
 app.listen(PORT, () => console.log(`Server is running at http://localhost:${PORT}`));
