@@ -162,11 +162,36 @@ app.get('/api/dashboard-data', async (req, res) => {
         if (config && config.value) {
             orderedGames = JSON.parse(config.value);
         }
+
         const allDbGames = (await db.prepare("SELECT DISTINCT game_association FROM packages").all()).map(g => g.game_association);
-        const newGames = allDbGames.filter(g => !orderedGames.includes(g)).sort();
-        let sortedGames = [...orderedGames, ...newGames];
+
+        // ++ LOGIC ใหม่: ตรวจสอบ, ลบของเก่า, เพิ่มของใหม่, แล้วค่อยบันทึก ++
+
+        // 1. กรองลิสต์ลำดับเดิม ให้เหลือเฉพาะเกมที่ยังมีแพ็กเกจอยู่จริง
+        const cleanedOrderedGames = orderedGames.filter(game => allDbGames.includes(game));
+
+        // 2. หาเกมใหม่จริงๆ ที่ยังไม่เคยอยู่ในลิสต์ลำดับมาก่อน
+        const newGames = allDbGames.filter(game => !orderedGames.includes(game));
+
+        // 3. สร้างลิสต์ลำดับที่ถูกต้องสมบูรณ์ขึ้นมาใหม่
+        const finalCorrectOrder = [...cleanedOrderedGames, ...newGames];
+
+        // 4. ตรวจสอบว่าลิสต์มีการเปลี่ยนแปลงหรือไม่ (อาจจะมีการลบหรือเพิ่ม) แล้วค่อยบันทึก
+        if (JSON.stringify(finalCorrectOrder) !== JSON.stringify(orderedGames)) {
+            console.log('Game order has changed. Updating app_config.');
+            console.log('Old order:', orderedGames);
+            console.log('New correct order:', finalCorrectOrder);
+
+            const value = JSON.stringify(finalCorrectOrder);
+            await db.prepare("INSERT INTO app_config (key, value) VALUES ('game_order', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(value);
+            orderedGames = finalCorrectOrder; // อัปเดตตัวแปรเพื่อใช้ต่อทันที
+        }
+        // ++ จบ LOGIC ใหม่ ++
+
+        let sortedGames = orderedGames;
         const activeGames = (await db.prepare("SELECT DISTINCT game_association FROM packages WHERE is_active = 1").all()).map(g => g.game_association);
         const finalSortedActiveGames = sortedGames.filter(g => activeGames.includes(g));
+        
         let query = 'SELECT * FROM packages';
         const params = [];
         if (game) {
