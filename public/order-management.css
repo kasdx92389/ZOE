@@ -30,7 +30,7 @@ html, body {
 
 /* --- Main Layout & Structure --- */
 .wrap {
-  max-width: 1024px;
+  max-width: 1200px;
   margin: 24px auto;
   padding: 0 16px;
 }
@@ -38,12 +38,17 @@ html, body {
   display: grid;
   gap: 24px;
 }
+.stack > .card:last-child {
+  max-width: 1024px;
+  margin-left: auto;
+  margin-right: auto;
+}
 .card {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  padding: 24px;
+  padding: 24px 32px;
 }
 #order-form.stack {
   gap: 24px;
@@ -123,6 +128,7 @@ textarea {
   height: 40px;
   padding: 0 16px;
   transition: all .2s ease;
+  white-space: nowrap;
 }
 .btn:hover { background: #f8fafc; color: var(--text); }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -131,13 +137,11 @@ textarea {
 .btn.ghost:hover { background: var(--bg-subtle); }
 .btn.icon-btn { padding: 0; width: 40px; }
 
-/* ===== NEW: Make add button compact and consistent ===== */
 #btn-add-item.icon-btn {
     width: 32px;
     height: 32px;
     flex-shrink: 0;
 }
-/* ======================================================= */
 
 .actions { display: flex; gap: 8px; align-items: center; }
 .form-footer {
@@ -150,24 +154,35 @@ textarea {
 /* --- Specific Rows & Components --- */
 .add-item-row {
   display: grid;
-  grid-template-columns: 1fr 80px 120px 32px; /* Adjusted column width for new button size */
+  grid-template-columns: 1fr 80px 120px 32px;
   gap: 8px;
   align-items: center;
 }
 .grid.g3.compact { align-items: flex-end; }
+
+/* ++ MODIFIED: Styles for the Profit stat box (Final Version) ++ */
 .stat {
   display: flex;
-  flex-direction: column;
-  gap: 0;
+  flex-direction: row; 
+  align-items: center; 
+  justify-content: space-between; 
+  gap: 8px;
   border-radius: 8px;
-  padding: 5px 12px;
-  background: var(--accent-light);
-  text-align: right;
-  justify-content: center;
+  padding: 0 12px; 
+  background: var(--bg-subtle);
   height: 40px;
 }
-.stat strong { font-size: 20px; color: var(--accent); font-weight: 700; line-height: 1.2; }
-.stat small { font-size: 12px; font-weight: 600; color: var(--accent); }
+.stat small {
+  font-size: 13px; 
+  font-weight: 600;
+  color: var(--muted);
+}
+.stat strong {
+  font-size: 16px; 
+  color: var(--text);
+  font-weight: 700;
+}
+/* ++ END: Modified Styles ++ */
 
 /* --- Tables --- */
 .table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); margin-top: 8px; }
@@ -193,15 +208,13 @@ textarea {
 .table .key-data { font-weight: 600; color: var(--text); }
 .table.sticky thead th { position: sticky; top: 0; z-index: 1; background-color: #fdfdff; }
 
-/* ===== START: FIX FOR DELETE BUTTON ===== */
 .table .btn-delete-item, .table .btn-delete-order {
   background: transparent; border: none; cursor: pointer;
   color: var(--muted); padding: 4px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  position: relative; /* Ensure button is on its own rendering layer */
-  z-index: 2;         /* Lift the button above other cell content */
+  position: relative;
+  z-index: 2;
 }
-/* ===== END: FIX FOR DELETE BUTTON ===== */
 
 .table .btn-delete-item:hover, .table .btn-delete-order:hover {
   background-color: #fee2e2; color: #b91c1c;
@@ -270,7 +283,6 @@ textarea {
   flex-grow: 1;
 }
 
-/* [NEW] Styles for confirmation summary */
 .dialog-message .summary-details {
   text-align: left;
   color: var(--text);
@@ -314,20 +326,3 @@ textarea {
   justify-content: center;
   gap: 8px;
 }
-/* === START: CUSTOM LAYOUT EXPANSION === */
-
-/* 1. ขยายความกว้างสูงสุดของ Layout หลักทั้งหน้า */
-/* เราจะเปลี่ยนค่า max-width จากเดิม 1024px เป็น 1400px */
-.wrap {
-  max-width: 1200px;
-}
-
-/* 2. กำหนดให้การ์ดใบสุดท้าย (ส่วนของตารางรายการออเดอร์) */
-/* กลับไปมีความกว้างเท่าเดิมและจัดให้อยู่กึ่งกลาง */
-.stack > .card:last-child {
-  max-width: 1024px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-/* === END: CUSTOM LAYOUT EXPANSION === */

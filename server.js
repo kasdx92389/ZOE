@@ -8,8 +8,6 @@ const PgSession = require('connect-pg-simple')(session);
 const app = express();
 const PORT = 3000;
 
-// ++ FINAL FIX: Trust the reverse proxy on Render ++
-// This is crucial for secure cookies to work correctly in production.
 app.set('trust proxy', 1);
 
 // --- ค่าคงที่ ---
@@ -77,8 +75,7 @@ app.use(session({
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// (ส่วนที่เหลือของโค้ดทั้งหมดเหมือนเดิมทุกประการ)
-// ... The rest of the file ...
+// ... (ส่วนของ Routes อื่นๆ เหมือนเดิมทุกประการ) ...
 const requireLogin = (req, res, next) => {
     if (req.session.userId) {
         next();
@@ -87,7 +84,6 @@ const requireLogin = (req, res, next) => {
     }
 };
 
-// --- Public & Auth Routes ---
 app.get('/', (req, res) => {
     if (req.session.userId) {
         res.redirect('/admin/home');
@@ -96,8 +92,6 @@ app.get('/', (req, res) => {
     }
 });
 
-// REMOVED TEMPORARY SETUP ROUTE FOR PRODUCTION
-
 app.get('/register', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin-register.html'));
 });
@@ -105,7 +99,6 @@ app.get('/register', (req, res) => {
 app.get('/terms', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'terms.html'));
 });
-
 
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
@@ -139,8 +132,6 @@ app.get('/logout', (req, res) => {
     });
 });
 
-
-// --- Admin Routes ---
 app.get('/admin/home', requireLogin, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'homepage.html'));
 });
@@ -160,10 +151,8 @@ app.get('/admin/zoe-management', requireLogin, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'order-management.html'));
 });
 
-
-// --- API Endpoints ---
 app.use('/api', requireLogin);
-// ... (The rest of the API routes are correct and included below)
+
 // --- General Data API ---
 app.get('/api/dashboard-data', async (req, res) => {
     try {
@@ -194,6 +183,7 @@ app.get('/api/dashboard-data', async (req, res) => {
 });
 
 // --- Game Order API ---
+// ... (Game Order API routes remain the same)
 app.get('/api/games/order', async (req, res) => {
     try {
         let orderedGames = [];
@@ -223,7 +213,9 @@ app.post('/api/games/order', async (req, res) => {
     }
 });
 
+
 // --- Packages API ---
+// ... (Packages API routes remain the same)
 app.post('/api/packages', async (req, res) => {
     try {
         const { name, price, product_code, type, channel, game_association } = req.body;
@@ -317,9 +309,12 @@ app.post('/api/packages/bulk-actions', async (req, res) => {
     }
 });
 
+
 // --- Orders API ---
-app.get('/api/orders', async (req, res) => {
-    const { q = '', status = '', platform = '', limit = 200 } = req.query;
+
+// ++ MODIFIED: This function now builds the WHERE clause for both routes ++
+function buildOrdersQuery(queryParams) {
+    const { q = '', status = '', platform = '', startDate, endDate, limit = 200 } = queryParams;
     let sql = `SELECT * FROM orders WHERE 1=1`;
     const params = [];
     let paramIndex = 1;
@@ -336,10 +331,29 @@ app.get('/api/orders', async (req, res) => {
         sql += ` AND platform = $${paramIndex++}`;
         params.push(platform);
     }
-    sql += ` ORDER BY created_at DESC LIMIT $${paramIndex++}`;
-    params.push(Number(limit));
+    if (startDate) {
+        sql += ` AND order_date >= $${paramIndex++}`;
+        params.push(startDate);
+    }
+    if (endDate) {
+        sql += ` AND order_date <= $${paramIndex++}`;
+        params.push(endDate);
+    }
+    
+    // Add limit only for the non-export route
+    if (limit) {
+        sql += ` ORDER BY created_at DESC LIMIT $${paramIndex++}`;
+        params.push(Number(limit));
+    } else {
+        sql += ` ORDER BY created_at DESC`;
+    }
 
+    return { sql, params };
+}
+
+app.get('/api/orders', async (req, res) => {
     try {
+        const { sql, params } = buildOrdersQuery(req.query);
         const ordersResult = await pgPool.query(sql, params);
         const orders = ordersResult.rows;
         const itemsStmt = 'SELECT * FROM order_items WHERE order_id = $1';
@@ -354,6 +368,7 @@ app.get('/api/orders', async (req, res) => {
     }
 });
 
+// ... (POST, PUT, DELETE orders routes remain the same) ...
 function genOrderNumber() {
     const d = new Date();
     const y = d.getFullYear();
@@ -448,43 +463,39 @@ app.delete('/api/orders/:orderNumber', async (req, res) => {
         res.status(500).json({ error: 'Failed to delete order' });
     }
 });
-// --- NEW: Route for exporting orders to CSV ---
+
+
 app.get('/api/orders/export/csv', async (req, res) => {
     try {
-        // 1. ดึงข้อมูลออเดอร์ทั้งหมดจากฐานข้อมูล
-        const orders = await db.prepare('SELECT * FROM orders ORDER BY order_date DESC').all();
+        // ++ MODIFIED: Use the shared query builder, but without the limit ++
+        const queryParams = { ...req.query, limit: null }; 
+        const { sql, params } = buildOrdersQuery(queryParams);
+        
+        const ordersResult = await pgPool.query(sql, params);
+        const orders = ordersResult.rows;
 
         if (orders.length === 0) {
-            return res.status(404).send('ไม่มีรายการในออเดอร์');
+            return res.status(404).send('ไม่มีรายการในออเดอร์ที่เลือก');
         }
 
-        // 2. กำหนดหัวข้อของไฟล์ CSV
-        const csvHeaders = [
-            'order_number', 'order_date', 'customer_name', 'game_name',
-            'platform', 'total_paid', 'cost', 'profit', 'status', 'operator',
-            'topup_channel', 'packages_text', 'note'
-        ];
-        let csv = csvHeaders.join(',') + '\n'; // สร้าง Header row
+        const csvHeaders = ['order_number', 'order_date', 'customer_name', 'game_name', 'platform', 'total_paid', 'cost', 'profit', 'status', 'operator', 'topup_channel', 'packages_text', 'note'];
+        let csv = csvHeaders.join(',') + '\n';
 
-        // 3. วนลูปเพื่อแปลงข้อมูลแต่ละออเดอร์ให้เป็นแถวใน CSV
         for (const order of orders) {
             const row = csvHeaders.map(header => {
                 let value = order[header] === null || order[header] === undefined ? '' : String(order[header]);
-                // จัดการกับข้อมูลที่มีเครื่องหมาย comma หรือ quote เพื่อไม่ให้ไฟล์ CSV เพี้ยน
                 if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-                    value = `"${value.replace(/"/g, '""')}"`; // Escape double quotes
+                    value = `"${value.replace(/"/g, '""')}"`;
                 }
                 return value;
             });
             csv += row.join(',') + '\n';
         }
 
-        // 4. ตั้งค่า Headers เพื่อให้เบราว์เซอร์ดาวน์โหลดเป็นไฟล์
         const fileName = `orders-export-${new Date().toISOString().slice(0, 10)}.csv`;
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
 
-        // 5. ส่งข้อมูล CSV กลับไป
         res.status(200).end(csv);
 
     } catch (error) {

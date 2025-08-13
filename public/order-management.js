@@ -11,6 +11,7 @@
   const el = id => document.getElementById(id);
   const qs = s => document.querySelector(s);
 
+  // ... (ส่วนบนของโค้ดเหมือนเดิมทุกประการ) ...
   const dialog = {
     overlay: el('custom-dialog-overlay'),
     title: el('dialog-title'),
@@ -191,14 +192,26 @@
     renderOrders(ordersData.orders || []);
   }
   
-  async function refreshOrders() {
+  function getCurrentFilters() {
+    const params = new URLSearchParams();
     const q = el('search-q').value.trim();
     const status = el('filter-status').value;
     const platform = el('filter-platform').value;
-    const url = new URL(location.origin + '/api/orders');
-    if (q) url.searchParams.set('q', q);
-    if (status) url.searchParams.set('status', status);
-    if (platform) url.searchParams.set('platform', platform);
+    const startDate = el('filter-start-date').value;
+    const endDate = el('filter-end-date').value;
+    
+    if (q) params.set('q', q);
+    if (status) params.set('status', status);
+    if (platform) params.set('platform', platform);
+    if (startDate) params.set('startDate', startDate);
+    if (endDate) params.set('endDate', endDate);
+    
+    return params;
+  }
+
+  async function refreshOrders() {
+    const params = getCurrentFilters();
+    const url = `/api/orders?${params.toString()}`;
     
     const res = await fetch(url);
     const data = await res.json();
@@ -371,12 +384,6 @@
     el('cost').addEventListener('input', calcProfit);
     el('total-paid').addEventListener('input', calcProfit);
     
-    // ===== START: FIX FOR EVENT LISTENERS =====
-    // Remove listeners for buttons that no longer exist
-    // el('btn-new-order').addEventListener('click', resetForm);
-    // el('btn-refresh').addEventListener('click', refreshOrders);
-
-    // Ensure the export button listener is correctly attached
     const exportBtn = el('btn-export-csv');
     if (exportBtn) {
         exportBtn.addEventListener('click', async () => {
@@ -385,9 +392,10 @@
             exportBtn.disabled = true;
 
             try {
-                const res = await fetch('/api/orders/export/csv');
+                const params = getCurrentFilters();
+                const res = await fetch(`/api/orders/export/csv?${params.toString()}`);
 
-                if (res.ok) { // Status 200: มีไฟล์ให้ดาวน์โหลด
+                if (res.ok) {
                     const blob = await res.blob();
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
@@ -403,10 +411,10 @@
                     
                     a.download = filename;
                     document.body.appendChild(a);
-                    a.click();
+a.click();
                     window.URL.revokeObjectURL(url);
                     a.remove();
-                } else { // Status 404 หรืออื่นๆ: ไม่มีไฟล์
+                } else {
                     const errorMsg = await res.text();
                     showCustomAlert(errorMsg || 'ไม่มีข้อมูลออเดอร์ให้ Export', 'แจ้งเตือน');
                 }
@@ -419,11 +427,12 @@
             }
         });
     }
-    // ===== END: FIX FOR EVENT LISTENERS =====
     
+    // Add listeners for all filters
     el('search-q').addEventListener('input', refreshOrders);
-    el('filter-status').addEventListener('change', refreshOrders);
-    el('filter-platform').addEventListener('change', refreshOrders);
+    ['filter-status', 'filter-platform'].forEach(id => {
+        el(id).addEventListener('change', refreshOrders);
+    });
     
     qs('#orders-table').addEventListener('click', e => {
       const deleteBtn = e.target.closest('.btn-delete-order');
@@ -437,5 +446,29 @@
         loadOrderIntoForm(row.dataset.id);
       }
     });
+
+    // ++ ADDED: Litepicker Initialization ++
+    const startDateInput = el('filter-start-date');
+    const endDateInput = el('filter-end-date');
+    const picker = new Litepicker({
+        element: el('date-range-picker'),
+        singleMode: false,
+        autoApply: true,
+        format: 'YYYY-MM-DD',
+        separator: ' ถึง ',
+        setup: (picker) => {
+            picker.on('selected', (date1, date2) => {
+                startDateInput.value = picker.getStartDate().format('YYYY-MM-DD');
+                endDateInput.value = picker.getEndDate().format('YYYY-MM-DD');
+                refreshOrders();
+            });
+            picker.on('clear:selection', () => {
+                startDateInput.value = '';
+                endDateInput.value = '';
+                refreshOrders();
+            });
+        }
+    });
+
   });
 })();
