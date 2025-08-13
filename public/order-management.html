@@ -30,23 +30,24 @@
         display: flex;
         flex-grow: 1;
         justify-content: flex-end;
-        gap: 8px;
+        gap: 8px; /* Reduced gap for tighter spacing */
         align-items: center;
       }
       #date-range-picker {
+        /* นำไอคอนปฏิทินกลับมา แต่เปลี่ยนตำแหน่งไปไว้ด้านขวา */
         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Cline x1='16' y1='2' x2='16' y2='6'%3E%3C/line%3E%3Cline x1='8' y1='2' x2='8' y2='6'%3E%3C/line%3E%3Cline x1='3' y1='10' x2='21' y2='10'%3E%3C/line%3E%3C/svg%3E");
         background-repeat: no-repeat;
-        /* ++ MODIFIED: Moved icon to the right side ++ */
+        /* กำหนดตำแหน่งไอคอนไปทางขวา โดยเว้นระยะ 12px จากขอบ */
         background-position: right 12px center;
-        padding-left: 12px; /* Reset left padding */
-        padding-right: 38px; /* Add space on the right for the icon */
-        width: 250px;
+        /* เพิ่ม padding ด้านขวาเพื่อไม่ให้ตัวหนังสือทับไอคอน */
+        padding-right: 38px;
+        width: 220px;
       }
       #search-q {
-          min-width: 150px;
+          min-width: 150px; /* Allow search to shrink */
       }
       #btn-export-csv {
-          white-space: nowrap;
+          white-space: nowrap; /* Prevent button text from wrapping */
       }
   </style>
 </head>
@@ -127,11 +128,11 @@
           <div class="grid g2">
             <div class="field">
               <label for="payment-proof" class="field-label">หลักฐานโอนเงิน (URL)</label>
-              <input type="url" id="payment-proof" class="input" placeholder="กรอกลิงก์จากโปรแกรม ShareX" />
+              <input type="url" id="payment-proof" class="input" placeholder="กรอกลิงก์ที่ได้จากโปรแกรม" />
             </div>
             <div class="field">
               <label for="sales-proof" class="field-label">หลักฐานปิดการขาย (URL)</label>
-              <input type="url" id="sales-proof" class="input" placeholder="กรอกลิงก์จากโปรแกรม ShareX" />
+              <input type="url" id="sales-proof" class="input" placeholder="กรอกลิงก์ที่ได้จากโปรแกรม" />
             </div>
           </div>
           <div class="grid g12">

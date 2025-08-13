@@ -11,6 +11,7 @@
   const el = id => document.getElementById(id);
   const qs = s => document.querySelector(s);
 
+  // ... (ส่วนบนของโค้ดเหมือนเดิมทุกประการ) ...
   const dialog = {
     overlay: el('custom-dialog-overlay'),
     title: el('dialog-title'),
@@ -446,7 +447,7 @@ a.click();
       }
     });
 
-    // Litepicker Initialization for filter bar
+    // ++ ADDED: Litepicker Initialization ++
     const startDateInput = el('filter-start-date');
     const endDateInput = el('filter-end-date');
     const picker = new Litepicker({
