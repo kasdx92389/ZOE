@@ -83,8 +83,11 @@ html, body {
 /* --- Forms & Inputs --- */
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field-label { font-size: 13px; color: var(--text); font-weight: 600; }
-.input, select, textarea {
-  border: 1px solid transparent;
+
+/* ++ MODIFIED: Unified styles for all input-like elements ++ */
+.input, select, textarea, .stat {
+  box-sizing: border-box; /* Ensure consistent box model */
+  border: 1px solid var(--bg-subtle); /* Use subtle border instead of transparent */
   background: var(--bg-subtle);
   border-radius: 8px;
   height: 40px;
@@ -94,23 +97,19 @@ html, body {
   font-family: inherit;
   transition: all .2s ease;
 }
-textarea { height: auto; padding: 8px 12px; }
-.input:hover, select:hover, textarea:hover {
+textarea { 
+  height: auto; 
+  padding: 8px 12px; 
+  min-height: 80px; /* Reduced min-height */
+}
+.input:hover, select:hover, textarea:hover, .stat:hover {
   background-color: #e9eef5;
+  border-color: #e9eef5;
 }
 .input:focus, select:focus, textarea:focus {
   background-color: #fff;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-light);
-}
-textarea {
-  height: auto;
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 12px;
-  padding-right: 12px;
-  min-height: 150px;
-  padding: 8px 12px;
 }
 
 /* --- Buttons --- */
@@ -160,17 +159,12 @@ textarea {
 }
 .grid.g3.compact { align-items: flex-end; }
 
-/* ++ MODIFIED: Styles for the Profit stat box (Final Version) ++ */
 .stat {
   display: flex;
   flex-direction: row; 
   align-items: center; 
   justify-content: space-between; 
   gap: 8px;
-  border-radius: 8px;
-  padding: 0 12px; 
-  background: var(--bg-subtle);
-  height: 40px;
 }
 .stat small {
   font-size: 13px; 
@@ -182,7 +176,6 @@ textarea {
   color: var(--text);
   font-weight: 700;
 }
-/* ++ END: Modified Styles ++ */
 
 /* --- Tables --- */
 .table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); margin-top: 8px; }
@@ -325,4 +318,12 @@ textarea {
   align-items: center;
   justify-content: center;
   gap: 8px;
+}
+
+/* ++ ADDED: Cross-browser alignment for filters ++ */
+.filter-wrapper > .input,
+.filter-wrapper > .btn {
+    box-sizing: border-box; /* Enforce consistent box model */
+    margin-top: 0; /* Remove any default browser margins */
+    margin-bottom: 0;
 }
