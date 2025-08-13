@@ -100,7 +100,7 @@ html, body {
 textarea { 
   height: auto; 
   padding: 8px 12px; 
-  min-height: 80px; /* Reduced min-height */
+  min-height: 170px; /* Reduced min-height */
 }
 .input:hover, select:hover, textarea:hover, .stat:hover {
   background-color: #e9eef5;
