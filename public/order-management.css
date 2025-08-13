@@ -328,3 +328,9 @@ textarea {
     margin-bottom: 0;
     vertical-align: middle;
 }
+/* ++ STYLES: Adjust column widths for the items table ++ */
+#items-table th:nth-child(1) { width: 50%; } /* คอลัมน์ 'แพ็กเกจ' */
+#items-table th:nth-child(2) { width: 15%; } /* คอลัมน์ 'จำนวน' */
+#items-table th:nth-child(3) { width: 15%; } /* คอลัมน์ 'ราคา/หน่วย' */
+#items-table th:nth-child(4) { width: 15%; } /* คอลัมน์ 'รวม' */
+#items-table th:nth-child(5) { width: 5%; text-align: center; } /* คอลัมน์ 'ปุ่มลบ' */
