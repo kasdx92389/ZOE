@@ -370,6 +370,10 @@ textarea {
 
 /* คอลัมน์ที่ 5: ปุ่มลบ */
 #items-table td:last-child {
-  text-align: center;
+  text-align: right;
   width: 60px;
+}
+/* จัดปุ่มลบในตารางออเดอร์ให้อยู่กึ่งกลาง */
+#orders-table td:last-child {
+  text-align: center;
 }
