@@ -135,11 +135,12 @@
 
   function resetForm() {
     el('order-form').reset();
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    el('order-date').value = `${year}-${month}-${day}`;
+
+    // Set default value to current local date and time
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); // Adjust for local timezone
+    el('order-date').value = now.toISOString().slice(0, 16);
+
     state.items = [];
     fillSelect(el('platform'), state.validPlatforms, '— เลือกแพลตฟอร์ม —');
     renderItems();
@@ -169,10 +170,22 @@
   function renderOrders(orders, total) {
     state.allOrders = orders;
     const tb = qs('#orders-table tbody');
-    tb.innerHTML = (orders || []).map(o => `
+    tb.innerHTML = (orders || []).map(o => {
+      // Format date and time for display in the table
+      const formattedDateTime = o.order_date 
+        ? new Date(o.order_date).toLocaleString('sv-SE', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+        : '';
+      
+      return `
       <tr data-id="${o.order_number}" class="interactive-row">
         <td class="key-data">${o.order_number}</td>
-        <td>${o.order_date}</td>
+        <td>${formattedDateTime}</td>
         <td>${o.customer_name || ''}</td>
         <td>${o.game_name || ''}</td>
         <td class="num key-data">${fmt(o.total_paid)}</td>
@@ -184,7 +197,8 @@
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
           </button>
         </td>
-      </tr>`).join('');
+      </tr>`
+    }).join('');
     
     renderPagination(total);
   }
@@ -324,7 +338,7 @@
 
   async function saveOrder() {
     const body = {
-      order_date: el('order-date').value || new Date().toISOString().slice(0, 10),
+      order_date: el('order-date').value ? new Date(el('order-date').value).toISOString() : new Date().toISOString(),
       platform: el('platform').value,
       customer_name: el('customer-name').value.trim(),
       game_name: el('game-select').value,
@@ -386,7 +400,11 @@
     
     fillSelect(el('platform'), state.validPlatforms, '— เลือกแพลตฟอร์ม —');
     
-    el('order-date').value = orderData.order_date;
+    // Format the full ISO string from DB to the format needed by datetime-local input
+    if (orderData.order_date) {
+        el('order-date').value = orderData.order_date.slice(0, 16);
+    }
+    
     setIfExists(el('game-select'), orderData.game_name);
     refillPackageOptions();
     
