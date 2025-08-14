@@ -299,7 +299,7 @@ app.post('/api/packages/order', async (req, res) => {
 });
 
 app.post('/api/packages/bulk-actions', async (req, res) => {
-    const { action, ids, updates } = req.body;
+    const { action, ids, updates, nameUpdates, priceUpdates, codeUpdates } = req.body; // ++ เพิ่มตัวแปรที่รับมา ++
     if (!action || !Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'Invalid request' });
 
     const client = await pgPool.connect();
@@ -310,6 +310,25 @@ app.post('/api/packages/bulk-actions', async (req, res) => {
             await client.query(`DELETE FROM packages WHERE id = ANY($1::int[])`, [ids]);
         } else if (action === 'updateStatus') {
             await client.query(`UPDATE packages SET is_active = $1 WHERE id = ANY($2::int[])`, [req.body.status, ids]);
+        
+        // ++ เพิ่มส่วนนี้: จัดการแก้ไขชื่อแพ็กเกจทีละรายการ ++
+        } else if (action === 'setIndividualNames' && nameUpdates) {
+            for (const update of nameUpdates) {
+                await client.query('UPDATE packages SET name = $1 WHERE id = $2', [update.newName, update.id]);
+            }
+        
+        // ++ เพิ่มส่วนนี้: จัดการแก้ไขราคาแพ็กเกจทีละรายการ ++
+        } else if (action === 'setIndividualPrices' && priceUpdates) {
+            for (const update of priceUpdates) {
+                await client.query('UPDATE packages SET price = $1 WHERE id = $2', [update.newPrice, update.id]);
+            }
+
+        // ++ เพิ่มส่วนนี้: จัดการแก้ไขโค้ดแพ็กเกจทีละรายการ ++
+        } else if (action === 'setIndividualCodes' && codeUpdates) {
+            for (const update of codeUpdates) {
+                await client.query('UPDATE packages SET product_code = $1 WHERE id = $2', [update.newCode, update.id]);
+            }
+
         } else if (action === 'bulkEdit' && updates) {
             const setClauses = [];
             const params = [];
@@ -318,9 +337,11 @@ app.post('/api/packages/bulk-actions', async (req, res) => {
                 setClauses.push(`${key} = $${paramIndex++}`);
                 params.push(updates[key]);
             }
-            params.push(ids);
-            const sql = `UPDATE packages SET ${setClauses.join(', ')} WHERE id = ANY($${paramIndex}::int[])`;
-            await client.query(sql, params);
+            if (setClauses.length > 0) {
+                params.push(ids);
+                const sql = `UPDATE packages SET ${setClauses.join(', ')} WHERE id = ANY($${paramIndex}::int[])`;
+                await client.query(sql, params);
+            }
         }
         
         await client.query('COMMIT');
@@ -328,7 +349,7 @@ app.post('/api/packages/bulk-actions', async (req, res) => {
     } catch (error) {
         await client.query('ROLLBACK');
         console.error('Bulk action error:', error);
-        res.status(500).json({ error: 'Failed to perform bulk action' });
+        res.status(500).json({ error: 'Failed to perform bulk action', details: error.message });
     } finally {
         client.release();
     }
