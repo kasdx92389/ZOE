@@ -167,41 +167,44 @@
     updateTotals();
   }
 
-  function renderOrders(orders, total) {
-    state.allOrders = orders;
-    const tb = qs('#orders-table tbody');
-    tb.innerHTML = (orders || []).map(o => {
-      // Format date and time for display in the table
-      const formattedDateTime = o.order_date 
-        ? new Date(o.order_date).toLocaleString('sv-SE', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit'
-          })
-        : '';
-      
-      return `
-      <tr data-id="${o.order_number}" class="interactive-row">
-        <td class="key-data">${o.order_number}</td>
-        <td>${formattedDateTime}</td>
-        <td>${o.customer_name || ''}</td>
-        <td>${o.game_name || ''}</td>
-        <td class="num key-data">${fmt(o.total_paid)}</td>
-        <td class="num">${fmt(o.profit)}</td>
-        <td><span class="status-badge ${getStatusBadgeClass(o.status)}">${o.status}</span></td>
-        <td>${o.operator || ''}</td>
-        <td>
-          <button type="button" class="btn-delete-order" data-id="${o.order_number}" title="ลบออเดอร์นี้">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-          </button>
-        </td>
-      </tr>`
-    }).join('');
-    
-    renderPagination(total);
-  }
+function renderOrders(orders, total) {
+  state.allOrders = orders;
+  const tb = qs('#orders-table tbody');
+  tb.innerHTML = ''; // Clear existing rows
+
+  (orders || []).forEach(o => {
+    const tr = document.createElement('tr');
+    tr.dataset.id = o.order_number;
+    tr.className = 'interactive-row';
+
+    const formattedDateTime = o.order_date
+      ? new Date(o.order_date).toLocaleString('sv-SE', {
+          year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', minute: '2-digit'
+        })
+      : '';
+
+    // Create and append cells one by one
+    tr.innerHTML = `
+      <td class="key-data">${o.order_number}</td>
+      <td>${formattedDateTime}</td>
+      <td>${o.customer_name || ''}</td>
+      <td>${o.game_name || ''}</td>
+      <td class="num key-data">${fmt(o.total_paid)}</td>
+      <td class="num">${fmt(o.profit)}</td>
+      <td><span class="status-badge ${getStatusBadgeClass(o.status)}">${o.status}</span></td>
+      <td>${o.operator || ''}</td>
+      <td>
+        <button type="button" class="btn-delete-order" data-id="${o.order_number}" title="ลบออเดอร์นี้">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+        </button>
+      </td>
+    `;
+    tb.appendChild(tr);
+  });
+
+  renderPagination(total);
+}
 
   function calcProfit() {
     const total = Number(el('total-paid').value || 0);
