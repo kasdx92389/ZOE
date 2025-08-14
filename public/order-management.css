@@ -379,3 +379,49 @@ textarea {
   justify-content: center;
   align-items: center;
 }
+
+.table-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 16px;
+  font-size: 14px;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+  margin-top: 1px;
+}
+
+.pagination-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.pagination-controls button {
+  min-width: 40px;
+  height: 40px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  background-color: var(--card);
+  color: var(--text);
+  cursor: pointer;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: all .2s ease;
+}
+
+.pagination-controls button:hover {
+  background-color: var(--bg-subtle);
+  border-color: #d1d9e4;
+}
+
+.pagination-controls button.active {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.pagination-controls button:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  background-color: var(--bg);
+}

@@ -6,12 +6,74 @@
     editingOrderId: null,
     allOrders: [],
     validPlatforms: [],
+    currentPage: 1,
+    rowsPerPage: 20,
   };
 
   const el = id => document.getElementById(id);
   const qs = s => document.querySelector(s);
 
-  // ... (ส่วนบนของโค้ดเหมือนเดิมทุกประการ) ...
+  function renderPagination(totalItems) {
+    const summaryEl = el('pagination-summary');
+    const controlsEl = el('pagination-controls');
+    const totalPages = Math.ceil(totalItems / state.rowsPerPage);
+
+    if (totalItems === 0) {
+      summaryEl.textContent = 'ไม่พบรายการออเดอร์';
+      controlsEl.innerHTML = '';
+      return;
+    }
+
+    const startItem = (state.currentPage - 1) * state.rowsPerPage + 1;
+    const endItem = Math.min(startItem + state.rowsPerPage - 1, totalItems);
+    summaryEl.textContent = `แสดง ${startItem} ถึง ${endItem} จาก ${totalItems} แถว`;
+
+    let buttonsHtml = `<button id="prev-page" title="หน้าก่อนหน้า" ${state.currentPage === 1 ? 'disabled' : ''}>&lt;</button>`;
+
+    const maxPagesToShow = 5;
+    let startPage, endPage;
+    if (totalPages <= maxPagesToShow) {
+        startPage = 1; endPage = totalPages;
+    } else {
+        const maxPagesBeforeCurrent = Math.floor(maxPagesToShow / 2);
+        const maxPagesAfterCurrent = Math.ceil(maxPagesToShow / 2) - 1;
+        if (state.currentPage <= maxPagesBeforeCurrent) {
+            startPage = 1; endPage = maxPagesToShow;
+        } else if (state.currentPage + maxPagesAfterCurrent >= totalPages) {
+            startPage = totalPages - maxPagesToShow + 1; endPage = totalPages;
+        } else {
+            startPage = state.currentPage - maxPagesBeforeCurrent;
+            endPage = state.currentPage + maxPagesAfterCurrent;
+        }
+    }
+
+    if (startPage > 1) buttonsHtml += `<button data-page="1">1</button><button disabled>...</button>`;
+    for (let i = startPage; i <= endPage; i++) {
+        buttonsHtml += `<button data-page="${i}" class="${i === state.currentPage ? 'active' : ''}">${i}</button>`;
+    }
+    if (endPage < totalPages) buttonsHtml += `<button disabled>...</button><button data-page="${totalPages}">${totalPages}</button>`;
+
+    buttonsHtml += `<button id="next-page" title="หน้าถัดไป" ${state.currentPage === totalPages ? 'disabled' : ''}>&gt;</button>`;
+    controlsEl.innerHTML = buttonsHtml;
+  }
+
+  function handlePaginationClick(e) {
+      const target = e.target.closest('button');
+      if (!target || target.disabled) return;
+      
+      let newPage = state.currentPage;
+
+      if (target.id === 'prev-page') newPage--;
+      else if (target.id === 'next-page') newPage++;
+      else if (target.dataset.page) newPage = Number(target.dataset.page);
+      else return;
+      
+      if (newPage !== state.currentPage) {
+          state.currentPage = newPage;
+          refreshOrders();
+      }
+  }
+
   const dialog = {
     overlay: el('custom-dialog-overlay'),
     title: el('dialog-title'),
@@ -104,7 +166,7 @@
     updateTotals();
   }
 
-  function renderOrders(orders) {
+  function renderOrders(orders, total) {
     state.allOrders = orders;
     const tb = qs('#orders-table tbody');
     tb.innerHTML = (orders || []).map(o => `
@@ -123,6 +185,8 @@
           </button>
         </td>
       </tr>`).join('');
+    
+    renderPagination(total);
   }
 
   function calcProfit() {
@@ -170,9 +234,10 @@
   }
 
   async function loadInitialData() {
+    const params = getCurrentFilters();
     const [dashRes, ordersRes] = await Promise.all([
-      fetch('/api/dashboard-data'),
-      fetch('/api/orders')
+        fetch('/api/dashboard-data'),
+        fetch(`/api/orders?${params.toString()}`)
     ]);
     const dashData = await dashRes.json();
     const ordersData = await ordersRes.json();
@@ -189,7 +254,7 @@
     fillSelect(el('filter-status'), statuses, 'ทุกสถานะ');
 
     refillPackageOptions();
-    renderOrders(ordersData.orders || []);
+    renderOrders(ordersData.orders || [], ordersData.total || 0);
   }
   
   function getCurrentFilters() {
@@ -200,6 +265,9 @@
     const startDate = el('filter-start-date').value;
     const endDate = el('filter-end-date').value;
     
+    params.set('page', state.currentPage);
+    params.set('limit', state.rowsPerPage);
+
     if (q) params.set('q', q);
     if (status) params.set('status', status);
     if (platform) params.set('platform', platform);
@@ -215,7 +283,7 @@
     
     const res = await fetch(url);
     const data = await res.json();
-    renderOrders(data.orders || []);
+    renderOrders(data.orders || [], data.total || 0);
   }
   
   async function showOrderConfirmation() {
@@ -288,6 +356,7 @@
     const out = await res.json();
     el('save-result').textContent = isUpdating ? `อัปเดต ${out.order_number} สำเร็จ` : `บันทึกแล้ว: ${out.order_number}`;
     
+    state.currentPage = 1; // กลับไปหน้าแรกทุกครั้งที่ save สำเร็จ
     await refreshOrders();
     setTimeout(() => resetForm(), 1000);
   }
@@ -411,7 +480,7 @@
                     
                     a.download = filename;
                     document.body.appendChild(a);
-a.click();
+                    a.click();
                     window.URL.revokeObjectURL(url);
                     a.remove();
                 } else {
@@ -428,10 +497,15 @@ a.click();
         });
     }
     
-    // Add listeners for all filters
-    el('search-q').addEventListener('input', refreshOrders);
+    el('search-q').addEventListener('input', () => {
+      state.currentPage = 1;
+      refreshOrders();
+    });
     ['filter-status', 'filter-platform'].forEach(id => {
-        el(id).addEventListener('change', refreshOrders);
+        el(id).addEventListener('change', () => {
+          state.currentPage = 1;
+          refreshOrders();
+        });
     });
     
     qs('#orders-table').addEventListener('click', e => {
@@ -446,11 +520,12 @@ a.click();
         loadOrderIntoForm(row.dataset.id);
       }
     });
+    
+    el('pagination-controls').addEventListener('click', handlePaginationClick);
 
-    // ++ ADDED: Litepicker Initialization ++
     const startDateInput = el('filter-start-date');
     const endDateInput = el('filter-end-date');
-    const picker = new Litepicker({
+    new Litepicker({
         element: el('date-range-picker'),
         singleMode: false,
         autoApply: true,
@@ -460,11 +535,13 @@ a.click();
             picker.on('selected', (date1, date2) => {
                 startDateInput.value = picker.getStartDate().format('YYYY-MM-DD');
                 endDateInput.value = picker.getEndDate().format('YYYY-MM-DD');
+                state.currentPage = 1;
                 refreshOrders();
             });
             picker.on('clear:selection', () => {
                 startDateInput.value = '';
                 endDateInput.value = '';
+                state.currentPage = 1;
                 refreshOrders();
             });
         }

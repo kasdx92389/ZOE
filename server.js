@@ -337,56 +337,70 @@ app.post('/api/packages/bulk-actions', async (req, res) => {
 
 // --- Orders API ---
 
-// ++ MODIFIED: This function now builds the WHERE clause for both routes ++
 function buildOrdersQuery(queryParams) {
-    const { q = '', status = '', platform = '', startDate, endDate, limit = 200 } = queryParams;
-    let sql = `SELECT * FROM orders WHERE 1=1`;
+    const { q = '', status = '', platform = '', startDate, endDate, page = 1, limit = 20 } = queryParams;
+    
+    // สร้างส่วน WHERE clause พื้นฐาน
+    let whereSql = ` FROM orders WHERE 1=1`;
     const params = [];
     let paramIndex = 1;
 
     if (q) {
-        sql += ` AND (order_number ILIKE $${paramIndex++} OR customer_name ILIKE $${paramIndex++})`;
+        whereSql += ` AND (order_number ILIKE $${paramIndex++} OR customer_name ILIKE $${paramIndex++})`;
         params.push(`%${q}%`, `%${q}%`);
     }
     if (status) {
-        sql += ` AND status = $${paramIndex++}`;
+        whereSql += ` AND status = $${paramIndex++}`;
         params.push(status);
     }
     if (platform) {
-        sql += ` AND platform = $${paramIndex++}`;
+        whereSql += ` AND platform = $${paramIndex++}`;
         params.push(platform);
     }
     if (startDate) {
-        sql += ` AND order_date >= $${paramIndex++}`;
+        whereSql += ` AND order_date >= $${paramIndex++}`;
         params.push(startDate);
     }
     if (endDate) {
-        sql += ` AND order_date <= $${paramIndex++}`;
+        whereSql += ` AND order_date <= $${paramIndex++}`;
         params.push(endDate);
     }
-    
-    // Add limit only for the non-export route
-    if (limit) {
-        sql += ` ORDER BY created_at DESC LIMIT $${paramIndex++}`;
-        params.push(Number(limit));
-    } else {
-        sql += ` ORDER BY created_at DESC`;
+
+    // สร้าง Query สำหรับนับจำนวนทั้งหมด
+    const countSql = `SELECT COUNT(*) as total` + whereSql;
+
+    // สร้าง Query สำหรับดึงข้อมูลตามหน้า
+    let dataSql = `SELECT *` + whereSql + ` ORDER BY created_at DESC`;
+    if (limit) { // limit = null คือการดึงทั้งหมด (สำหรับ export)
+        dataSql += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+        params.push(Number(limit), (Number(page) - 1) * Number(limit));
     }
 
-    return { sql, params };
+    return { dataSql, countSql, params };
 }
 
 app.get('/api/orders', async (req, res) => {
     try {
-        const { sql, params } = buildOrdersQuery(req.query);
-        const ordersResult = await pgPool.query(sql, params);
+        const { dataSql, countSql, params } = buildOrdersQuery(req.query);
+
+        // ดึงข้อมูล 2 ส่วนพร้อมกัน: จำนวนทั้งหมด และ ข้อมูลของหน้านั้นๆ
+        const [totalResult, ordersResult] = await Promise.all([
+            pgPool.query(countSql, params.slice(0, countSql.match(/\$/g)?.length || 0)),
+            pgPool.query(dataSql, params)
+        ]);
+
+        const total = parseInt(totalResult.rows[0].total, 10);
         const orders = ordersResult.rows;
+
+        // ดึง items ของแต่ละ order (เหมือนเดิม)
         const itemsStmt = 'SELECT * FROM order_items WHERE order_id = $1';
         for (const order of orders) {
             const itemsResult = await pgPool.query(itemsStmt, [order.id]);
             order.items = itemsResult.rows;
         }
-        res.json({ orders: orders });
+        
+        // ส่งข้อมูลกลับไป 2 อย่างคือ orders และ total
+        res.json({ orders, total });
     } catch (e) {
         console.error('Orders list error', e);
         res.status(500).json({ error: 'Failed to load orders' });
@@ -492,17 +506,18 @@ app.delete('/api/orders/:orderNumber', async (req, res) => {
 
 app.get('/api/orders/export/csv', async (req, res) => {
     try {
-        // ++ MODIFIED: Use the shared query builder, but without the limit ++
+        // ใช้ query builder ตัวเดียวกัน แต่ส่ง limit: null เพื่อบอกว่าไม่จำกัดจำนวน
         const queryParams = { ...req.query, limit: null }; 
-        const { sql, params } = buildOrdersQuery(queryParams);
+        const { dataSql, params } = buildOrdersQuery(queryParams);
         
-        const ordersResult = await pgPool.query(sql, params);
+        const ordersResult = await pgPool.query(dataSql, params);
         const orders = ordersResult.rows;
 
         if (orders.length === 0) {
             return res.status(404).send('ไม่มีรายการในออเดอร์ที่เลือก');
         }
 
+        // ส่วนที่เหลือของฟังก์ชันนี้เหมือนเดิมทุกประการ
         const csvHeaders = ['order_number', 'order_date', 'customer_name', 'game_name', 'platform', 'total_paid', 'cost', 'profit', 'status', 'operator', 'topup_channel', 'packages_text', 'note'];
         let csv = csvHeaders.join(',') + '\n';
 
