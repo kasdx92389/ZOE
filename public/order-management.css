@@ -178,7 +178,7 @@ textarea {
 }
 
 /* --- Tables --- */
-.table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); margin-top: 8px; }
+.table-wrap { overflow-x: hidden; border-radius: var(--radius); border: 1px solid var(--border); margin-top: 8px; }
 .table { width: 100%; border-collapse: collapse; }
 .table th, .table td {
   padding: 12px 14px;
