@@ -424,13 +424,12 @@ textarea {
   cursor: not-allowed;
   background-color: var(--bg);
 }
-/* ++ เพิ่มโค้ดชุดใหม่นี้ทั้งหมด ++ */
-#orders-table th:nth-child(1) { width: 14%; } /* เลขออเดอร์ */
-#orders-table th:nth-child(2) { width: 12%; } /* วันที่ */
-#orders-table th:nth-child(3) { width: 18%; } /* ลูกค้า */
-#orders-table th:nth-child(4) { width: 12%; } /* เกม */
-#orders-table th:nth-child(5) { width: 5%; }  /* ยอดจ่าย */
-#orders-table th:nth-child(6) { width: 5%; }  /* กำไร */
-#orders-table th:nth-child(7) { width: 8%; text-align: center; }  /* สถานะ */
-#orders-table th:nth-child(8) { width: 6%; }  /* ผู้ทำรายการ */
-#orders-table th:nth-child(9) { width: 3%; }  /* ปุ่มลบ */
+/* ++ ปรับปรุงความกว้างคอลัมน์ตารางออเดอร์ ++ */
+#orders-table th:nth-child(1) { width: 15%; } /* เลขออเดอร์ */
+#orders-table th:nth-child(2) { width: 15%; } /* วันที่ */
+#orders-table th:nth-child(3) { width: 22%; } /* ลูกค้า */
+#orders-table th:nth-child(4) { width: 15%; } /* เกม */
+#orders-table th:nth-child(5) { width: 10%; } /* ยอดจ่าย */
+#orders-table th:nth-child(6) { width: 10%; text-align: center; } /* สถานะ */
+#orders-table th:nth-child(7) { width: 8%; }  /* ผู้ทำรายการ */
+#orders-table th:nth-child(8) { width: 5%; }  /* ปุ่มลบ */

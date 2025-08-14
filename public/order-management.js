@@ -191,7 +191,6 @@ function renderOrders(orders, total) {
       <td>${o.customer_name || ''}</td>
       <td>${o.game_name || ''}</td>
       <td class="num key-data">${fmt(o.total_paid)}</td>
-      <td class="num">${fmt(o.profit)}</td>
       <td><span class="status-badge ${getStatusBadgeClass(o.status)}">${o.status}</span></td>
       <td>${o.operator || ''}</td>
       <td>
