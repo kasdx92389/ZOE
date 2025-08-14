@@ -179,7 +179,7 @@ textarea {
 
 /* --- Tables --- */
 .table-wrap { overflow-x: hidden; border-radius: var(--radius); border: 1px solid var(--border); margin-top: 8px; }
-.table { width: 100%; border-collapse: collapse; }
+.table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .table th, .table td {
   padding: 12px 14px;
   border-bottom: 1px solid var(--bg-subtle);
@@ -424,3 +424,13 @@ textarea {
   cursor: not-allowed;
   background-color: var(--bg);
 }
+/* ++ เพิ่มโค้ดชุดใหม่นี้ทั้งหมด ++ */
+#orders-table th:nth-child(1) { width: 14%; } /* เลขออเดอร์ */
+#orders-table th:nth-child(2) { width: 12%; } /* วันที่ */
+#orders-table th:nth-child(3) { width: 18%; } /* ลูกค้า */
+#orders-table th:nth-child(4) { width: 12%; } /* เกม */
+#orders-table th:nth-child(5) { width: 5%; }  /* ยอดจ่าย */
+#orders-table th:nth-child(6) { width: 5%; }  /* กำไร */
+#orders-table th:nth-child(7) { width: 8%; }  /* สถานะ */
+#orders-table th:nth-child(8) { width: 6%; }  /* ผู้ทำรายการ */
+#orders-table th:nth-child(9) { width: 3%; }  /* ปุ่มลบ */
