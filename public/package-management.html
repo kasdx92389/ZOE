@@ -604,18 +604,6 @@
 
                 if (id) {
                     const pkg = this.allPackages.find(p => p.id === id);
-
-                    // =======================================================
-                    // ++ นี่คือโค้ดที่แก้ไขเพื่อป้องกัน Error ++
-                    // =======================================================
-                    if (!pkg) {
-                        console.error(`Package with ID ${id} not found in local data. Forcing a data refresh.`);
-                        this.showToast('ไม่พบข้อมูลแพ็กเกจ อาจเป็นข้อมูลเก่า กำลังรีเฟรช...', 'error');
-                        this.fetchAndRenderPackages(true); // บังคับให้โหลดข้อมูลใหม่ทั้งหมด
-                        return; // ออกจากฟังก์ชันทันทีเพื่อป้องกัน Error
-                    }
-                    // =======================================================
-                    
                     title.textContent = 'Edit Package';
                     form.elements['package-id'].value = pkg.id;
                     form.elements['name'].value = pkg.name;
@@ -657,3 +645,4 @@
     </script>
 </body>
 </html>
+}

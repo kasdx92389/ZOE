@@ -37,43 +37,6 @@ const db = {
     transaction: (fn) => fn
 };
 
-// ++ ฟังก์ชันสำหรับซิงค์ข้อมูลลำดับเกม (เพิ่มใหม่) ++
-async function synchronizeGameOrder(dbInstance) {
-    try {
-        console.log('Running synchronizeGameOrder...');
-        // 1. ดึงลำดับเกมที่เคยบันทึกไว้
-        let orderedGames = [];
-        const config = await dbInstance.prepare("SELECT value FROM app_config WHERE key = 'game_order'").get();
-        if (config && config.value) {
-            orderedGames = JSON.parse(config.value);
-        }
-
-        // 2. ดึงรายชื่อเกมทั้งหมดที่มีแพ็กเกจอยู่ในปัจจุบัน
-        const allDbGames = (await dbInstance.prepare("SELECT DISTINCT game_association FROM packages").all()).map(g => g.game_association);
-
-        // 3. กรองลำดับเก่า ให้เหลือเฉพาะเกมที่ยังมีอยู่จริง
-        const cleanedOrderedGames = orderedGames.filter(game => allDbGames.includes(game));
-
-        // 4. หาเกมใหม่ที่ยังไม่เคยอยู่ในลำดับมาก่อน
-        const newGames = allDbGames.filter(game => !cleanedOrderedGames.includes(game));
-
-        // 5. สร้างลำดับที่ถูกต้องขึ้นมาใหม่
-        const finalCorrectOrder = [...cleanedOrderedGames, ...newGames];
-
-        // 6. ตรวจสอบว่าลำดับมีการเปลี่ยนแปลงหรือไม่ ถ้ามี ให้บันทึกลง DB
-        if (JSON.stringify(finalCorrectOrder) !== JSON.stringify(orderedGames)) {
-            console.log('Game order has changed. Updating app_config.');
-            const value = JSON.stringify(finalCorrectOrder);
-            await dbInstance.prepare("INSERT INTO app_config (key, value) VALUES ('game_order', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(value);
-        } else {
-            console.log('Game order is already up to date.');
-        }
-    } catch (error) {
-        console.error('Error during synchronizeGameOrder:', error);
-    }
-}
-
-
 // --- โหลดข้อมูลผู้ใช้ ---
 let users = {};
 const loadUsers = async () => {
@@ -125,7 +88,7 @@ app.get('/', (req, res) => {
     if (req.session.userId) {
         res.redirect('/admin/home');
     } else {
-        res.sendFile(path.join(__dirname, 'public', 'index.html'));
+        res.sendFile(path.join(__dirname, 'public', 'index.html')); 
     }
 });
 
@@ -194,17 +157,41 @@ app.use('/api', requireLogin);
 app.get('/api/dashboard-data', async (req, res) => {
     try {
         const { game } = req.query;
-
-        // ++ เรียกใช้ฟังก์ชันซิงค์ข้อมูล (แก้ไขใหม่) ++
-        await synchronizeGameOrder(db);
-
-        // ++ ดึงข้อมูลลำดับเกมล่าสุดมาใช้งาน (แก้ไขใหม่) ++
+        let orderedGames = [];
         const config = await db.prepare("SELECT value FROM app_config WHERE key = 'game_order'").get();
-        const sortedGames = (config && config.value) ? JSON.parse(config.value) : [];
+        if (config && config.value) {
+            orderedGames = JSON.parse(config.value);
+        }
 
+        const allDbGames = (await db.prepare("SELECT DISTINCT game_association FROM packages").all()).map(g => g.game_association);
+
+        // ++ LOGIC ใหม่: ตรวจสอบ, ลบของเก่า, เพิ่มของใหม่, แล้วค่อยบันทึก ++
+
+        // 1. กรองลิสต์ลำดับเดิม ให้เหลือเฉพาะเกมที่ยังมีแพ็กเกจอยู่จริง
+        const cleanedOrderedGames = orderedGames.filter(game => allDbGames.includes(game));
+
+        // 2. หาเกมใหม่จริงๆ ที่ยังไม่เคยอยู่ในลิสต์ลำดับมาก่อน
+        const newGames = allDbGames.filter(game => !orderedGames.includes(game));
+
+        // 3. สร้างลิสต์ลำดับที่ถูกต้องสมบูรณ์ขึ้นมาใหม่
+        const finalCorrectOrder = [...cleanedOrderedGames, ...newGames];
+
+        // 4. ตรวจสอบว่าลิสต์มีการเปลี่ยนแปลงหรือไม่ (อาจจะมีการลบหรือเพิ่ม) แล้วค่อยบันทึก
+        if (JSON.stringify(finalCorrectOrder) !== JSON.stringify(orderedGames)) {
+            console.log('Game order has changed. Updating app_config.');
+            console.log('Old order:', orderedGames);
+            console.log('New correct order:', finalCorrectOrder);
+
+            const value = JSON.stringify(finalCorrectOrder);
+            await db.prepare("INSERT INTO app_config (key, value) VALUES ('game_order', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(value);
+            orderedGames = finalCorrectOrder; // อัปเดตตัวแปรเพื่อใช้ต่อทันที
+        }
+        // ++ จบ LOGIC ใหม่ ++
+
+        let sortedGames = orderedGames;
         const activeGames = (await db.prepare("SELECT DISTINCT game_association FROM packages WHERE is_active = 1").all()).map(g => g.game_association);
         const finalSortedActiveGames = sortedGames.filter(g => activeGames.includes(g));
-
+        
         let query = 'SELECT * FROM packages';
         const params = [];
         if (game) {
@@ -258,9 +245,6 @@ app.post('/api/packages', async (req, res) => {
     try {
         const { name, price, product_code, type, channel, game_association } = req.body;
         const result = await db.prepare('INSERT INTO packages (name, price, product_code, type, channel, game_association) VALUES (?, ?, ?, ?, ?, ?) RETURNING id').get(name, price, product_code, type, channel, game_association);
-        
-        await synchronizeGameOrder(db); // ++ เพิ่มการซิงค์ ++
-
         res.status(201).json({ id: result.id, message: 'Package created' });
     } catch (error) {
         console.error("Error creating package:", error);
@@ -274,9 +258,6 @@ app.put('/api/packages/:id', async (req, res) => {
         const { name, price, product_code, type, channel, game_association, is_active } = req.body;
         const result = await db.prepare('UPDATE packages SET name = ?, price = ?, product_code = ?, type = ?, channel = ?, game_association = ?, is_active = ? WHERE id = ?').run(name, price, product_code, type, channel, game_association, is_active, id);
         if (result.rowCount === 0) return res.status(404).json({ error: 'Package not found' });
-        
-        await synchronizeGameOrder(db); // ++ เพิ่มการซิงค์ ++
-
         res.json({ id, message: 'Package updated' });
     } catch (error) {
         console.error(`Error updating package ${req.params.id}:`, error);
@@ -289,9 +270,6 @@ app.delete('/api/packages/:id', async (req, res) => {
         const { id } = req.params;
         const result = await db.prepare('DELETE FROM packages WHERE id = ?').run(id);
         if (result.rowCount === 0) return res.status(404).json({ error: 'Package not found' });
-        
-        await synchronizeGameOrder(db); // ++ เพิ่มการซิงค์ ++
-        
         res.status(200).json({ message: 'Package deleted' });
     } catch (error) {
         console.error(`Error deleting package ${req.params.id}:`, error);
@@ -302,7 +280,7 @@ app.delete('/api/packages/:id', async (req, res) => {
 app.post('/api/packages/order', async (req, res) => {
     const { order } = req.body;
     if (!Array.isArray(order)) return res.status(400).json({ error: 'Invalid order data' });
-
+    
     const client = await pgPool.connect();
     try {
         await client.query('BEGIN');
@@ -321,7 +299,7 @@ app.post('/api/packages/order', async (req, res) => {
 });
 
 app.post('/api/packages/bulk-actions', async (req, res) => {
-    const { action, ids, updates, nameUpdates, priceUpdates, codeUpdates } = req.body; // ++ เพิ่มตัวแปรที่รับมา ++
+    const { action, ids, updates } = req.body;
     if (!action || !Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'Invalid request' });
 
     const client = await pgPool.connect();
@@ -332,25 +310,6 @@ app.post('/api/packages/bulk-actions', async (req, res) => {
             await client.query(`DELETE FROM packages WHERE id = ANY($1::int[])`, [ids]);
         } else if (action === 'updateStatus') {
             await client.query(`UPDATE packages SET is_active = $1 WHERE id = ANY($2::int[])`, [req.body.status, ids]);
-
-            // ++ เพิ่มส่วนนี้: จัดการแก้ไขชื่อแพ็กเกจทีละรายการ ++
-        } else if (action === 'setIndividualNames' && nameUpdates) {
-            for (const update of nameUpdates) {
-                await client.query('UPDATE packages SET name = $1 WHERE id = $2', [update.newName, update.id]);
-            }
-
-            // ++ เพิ่มส่วนนี้: จัดการแก้ไขราคาแพ็กเกจทีละรายการ ++
-        } else if (action === 'setIndividualPrices' && priceUpdates) {
-            for (const update of priceUpdates) {
-                await client.query('UPDATE packages SET price = $1 WHERE id = $2', [update.newPrice, update.id]);
-            }
-
-            // ++ เพิ่มส่วนนี้: จัดการแก้ไขโค้ดแพ็กเกจทีละรายการ ++
-        } else if (action === 'setIndividualCodes' && codeUpdates) {
-            for (const update of codeUpdates) {
-                await client.query('UPDATE packages SET product_code = $1 WHERE id = $2', [update.newCode, update.id]);
-            }
-
         } else if (action === 'bulkEdit' && updates) {
             const setClauses = [];
             const params = [];
@@ -359,22 +318,17 @@ app.post('/api/packages/bulk-actions', async (req, res) => {
                 setClauses.push(`${key} = $${paramIndex++}`);
                 params.push(updates[key]);
             }
-            if (setClauses.length > 0) {
-                params.push(ids);
-                const sql = `UPDATE packages SET ${setClauses.join(', ')} WHERE id = ANY($${paramIndex}::int[])`;
-                await client.query(sql, params);
-            }
+            params.push(ids);
+            const sql = `UPDATE packages SET ${setClauses.join(', ')} WHERE id = ANY($${paramIndex}::int[])`;
+            await client.query(sql, params);
         }
-
-        await client.query('COMMIT');
         
-        await synchronizeGameOrder(db); // ++ เพิ่มการซิงค์ ++
-
+        await client.query('COMMIT');
         res.json({ ok: true, message: 'Bulk action successful' });
     } catch (error) {
         await client.query('ROLLBACK');
         console.error('Bulk action error:', error);
-        res.status(500).json({ error: 'Failed to perform bulk action', details: error.message });
+        res.status(500).json({ error: 'Failed to perform bulk action' });
     } finally {
         client.release();
     }
@@ -410,7 +364,7 @@ function buildOrdersQuery(queryParams) {
         sql += ` AND order_date <= $${paramIndex++}`;
         params.push(endDate);
     }
-
+    
     // Add limit only for the non-export route
     if (limit) {
         sql += ` ORDER BY created_at DESC LIMIT $${paramIndex++}`;
@@ -464,7 +418,7 @@ app.post('/api/orders', async (req, res) => {
         const orderQuery = `INSERT INTO orders(order_number, order_date, platform, customer_name, game_name, total_paid, payment_proof_url, sales_proof_url, product_code, package_count, packages_text, cost, profit, status, operator, topup_channel, note) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`;
         const orderResult = await client.query(orderQuery, [orderNumber, b.order_date, b.platform, b.customer_name, b.game_name, totalPaid, b.payment_proof_url, b.sales_proof_url, b.product_code, packageCount, packagesText, cost, profit, b.status, b.operator, b.topup_channel, b.note]);
         const orderId = orderResult.rows[0].id;
-
+        
         if (Array.isArray(b.items) && b.items.length > 0) {
             const itemQuery = `INSERT INTO order_items(order_id, package_id, package_name, product_code, quantity, unit_price, cost, total_price) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`;
             for (const it of b.items) {
@@ -492,7 +446,7 @@ app.put('/api/orders/:orderNumber', async (req, res) => {
         await client.query('BEGIN');
         const orderResult = await client.query('SELECT id FROM orders WHERE order_number = $1', [orderNumber]);
         if (orderResult.rows.length === 0) throw new Error('OrderNotFound');
-
+        
         const numericId = orderResult.rows[0].id;
         const totalPaid = Number(b.total_paid || 0);
         const cost = Number(b.cost || 0);
@@ -501,7 +455,7 @@ app.put('/api/orders/:orderNumber', async (req, res) => {
         const packageCount = b.items?.reduce((a, c) => a + Number(c.quantity || 0), 0) || 0;
 
         await client.query(`UPDATE orders SET order_date=$1, platform=$2, customer_name=$3, game_name=$4, total_paid=$5, payment_proof_url=$6, sales_proof_url=$7, product_code=$8, package_count=$9, packages_text=$10, cost=$11, profit=$12, status=$13, operator=$14, topup_channel=$15, note=$16 WHERE id=$17`, [b.order_date, b.platform, b.customer_name, b.game_name, totalPaid, b.payment_proof_url, b.sales_proof_url, b.product_code, packageCount, packagesText, cost, profit, b.status, b.operator, b.topup_channel, b.note, numericId]);
-
+        
         await client.query('DELETE FROM order_items WHERE order_id = $1', [numericId]);
         if (Array.isArray(b.items) && b.items.length > 0) {
             const itemQuery = `INSERT INTO order_items(order_id, package_id, package_name, product_code, quantity, unit_price, cost, total_price) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`;
@@ -539,9 +493,9 @@ app.delete('/api/orders/:orderNumber', async (req, res) => {
 app.get('/api/orders/export/csv', async (req, res) => {
     try {
         // ++ MODIFIED: Use the shared query builder, but without the limit ++
-        const queryParams = { ...req.query, limit: null };
+        const queryParams = { ...req.query, limit: null }; 
         const { sql, params } = buildOrdersQuery(queryParams);
-
+        
         const ordersResult = await pgPool.query(sql, params);
         const orders = ordersResult.rows;
 
