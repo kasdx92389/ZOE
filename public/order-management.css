@@ -396,14 +396,14 @@ textarea {
 }
 
 .pagination-controls button {
-  min-width: 40px;
-  height: 40px;
+  min-width: 38px;
+  height: 38px;
   padding: 0 8px;
   border: 1px solid var(--border);
   background-color: var(--card);
   color: var(--text);
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: 6px;
   font-weight: 600;
   transition: all .2s ease;
 }
@@ -431,6 +431,6 @@ textarea {
 #orders-table th:nth-child(4) { width: 12%; } /* เกม */
 #orders-table th:nth-child(5) { width: 5%; }  /* ยอดจ่าย */
 #orders-table th:nth-child(6) { width: 5%; }  /* กำไร */
-#orders-table th:nth-child(7) { width: 8%; }  /* สถานะ */
+#orders-table th:nth-child(7) { width: 8%; text-align: center; }  /* สถานะ */
 #orders-table th:nth-child(8) { width: 6%; }  /* ผู้ทำรายการ */
 #orders-table th:nth-child(9) { width: 3%; }  /* ปุ่มลบ */
