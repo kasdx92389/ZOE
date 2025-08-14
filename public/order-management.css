@@ -373,7 +373,9 @@ textarea {
   text-align: right;
   width: 60px;
 }
-/* จัดปุ่มลบในตารางออเดอร์ให้อยู่กึ่งกลาง */
+/* จัดปุ่มลบในตารางออเดอร์ให้อยู่กึ่งกลาง (แก้ไข) */
 #orders-table td:last-child {
-  text-align: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
