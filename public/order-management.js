@@ -134,12 +134,12 @@
   }
 
   function resetForm() {
-    el('order-form').reset();
+  el('order-form').reset();
 
-    // Set default value to current local date and time
-    const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); // Adjust for local timezone
-    el('order-date').value = now.toISOString().slice(0, 16);
+  // Set default value to current local date and time
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); // Adjust for local timezone
+  el('order-date').value = now.toISOString().slice(0, 16);
 
     state.items = [];
     fillSelect(el('platform'), state.validPlatforms, '— เลือกแพลตฟอร์ม —');
@@ -404,7 +404,14 @@ function renderOrders(orders, total) {
     
     // Format the full ISO string from DB to the format needed by datetime-local input
     if (orderData.order_date) {
-        el('order-date').value = orderData.order_date.slice(0, 16);
+    // 1. สร้าง Date object จากเวลา UTC ที่ได้จากฐานข้อมูล
+    const localDate = new Date(orderData.order_date);
+    
+    // 2. ชดเชยเวลาด้วย Timezone offset ของเครื่องผู้ใช้
+    localDate.setMinutes(localDate.getMinutes() - localDate.getTimezoneOffset());
+    
+    // 3. แปลงเป็น ISO string และตัดให้เหลือรูปแบบที่ input ต้องการ
+    el('order-date').value = localDate.toISOString().slice(0, 16);
     }
     
     setIfExists(el('game-select'), orderData.game_name);
