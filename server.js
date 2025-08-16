@@ -338,9 +338,6 @@ app.post('/api/packages/bulk-actions', async (req, res) => {
 // --- Orders API ---
 
 function buildOrdersQuery(queryParams) {
-    // 🔽 --- โค้ดสำหรับตรวจสอบ --- 🔽
-    console.log("--- Running NEW buildOrdersQuery with CAST ---");
-
     const { q = '', status = '', platform = '', startDate, endDate, page = 1, limit = 20 } = queryParams;
     
     // สร้างส่วน WHERE clause พื้นฐาน
@@ -361,11 +358,13 @@ function buildOrdersQuery(queryParams) {
         params.push(platform);
     }
     if (startDate) {
-        whereSql += ` AND CAST(order_date AS DATE) >= $${paramIndex++}`;
+        // 🔽 --- โค้ดใหม่ที่แก้ไขปัญหา Timezone --- 🔽
+        whereSql += ` AND (order_date AT TIME ZONE 'UTC')::date >= $${paramIndex++}`;
         params.push(startDate);
     }
     if (endDate) {
-        whereSql += ` AND CAST(order_date AS DATE) <= $${paramIndex++}`;
+        // 🔽 --- โค้ดใหม่ที่แก้ไขปัญหา Timezone --- 🔽
+        whereSql += ` AND (order_date AT TIME ZONE 'UTC')::date <= $${paramIndex++}`;
         params.push(endDate);
     }
 
