@@ -470,47 +470,74 @@
                 this.showModal(this.elements.bulkEditModal);
             },
             
-            async handleSaveBulkEdits(buttonEl) {
+async handleSaveBulkEdits(buttonEl) {
                 const modal = this.elements.bulkEditModal;
-                const nameUpdates = [], priceUpdates = [], codeUpdates = [];
-                
-                modal.querySelectorAll('#individual-edit-list input').forEach(input => {
-                    const id = parseInt(input.dataset.id, 10);
-                    const type = input.dataset.type;
-                    const originalPackage = this.allPackages.find(p => p.id === id);
+                buttonEl.classList.add('btn-loading');
 
-                    if (type === 'name' && input.value !== originalPackage.name) nameUpdates.push({ id, newName: input.value });
-                    else if (type === 'price' && parseFloat(input.value) !== originalPackage.price) priceUpdates.push({ id, newPrice: parseFloat(input.value) });
-                    else if (type === 'code' && input.value !== (originalPackage.product_code || '')) codeUpdates.push({ id, newCode: input.value });
-                });
+                try {
+                    // --- ส่วนที่ 1: รวบรวมข้อมูลการแก้ไขทั้งหมด ---
+                    const individualUpdates = new Map();
+                    modal.querySelectorAll('#individual-edit-list input').forEach(input => {
+                        const id = parseInt(input.dataset.id, 10);
+                        if (!individualUpdates.has(id)) {
+                            individualUpdates.set(id, {});
+                        }
+                        const type = input.dataset.type;
+                        const value = (type === 'price') ? parseFloat(input.value) : input.value;
+                        individualUpdates.get(id)[type] = value;
+                    });
 
-                const updates = {};
-                const newGameName = modal.querySelector('#bulk-game-association').value;
-                const newType = modal.querySelector('#bulk-type').value;
-                const newChannel = modal.querySelector('#bulk-channel').value;
+                    const commonUpdates = {};
+                    const newGameName = modal.querySelector('#bulk-game-association').value;
+                    const newType = modal.querySelector('#bulk-type').value;
+                    const newChannel = modal.querySelector('#bulk-channel').value;
 
-                if (newGameName && newGameName !== this.gameName) updates.game_association = newGameName;
-                if (newType) updates.type = newType;
-                if (newChannel) updates.channel = newChannel;
-                
-                const promises = [];
-                if (nameUpdates.length > 0) promises.push(this.handleBulkAction('setIndividualNames', { nameUpdates }));
-                if (priceUpdates.length > 0) promises.push(this.handleBulkAction('setIndividualPrices', { priceUpdates }));
-                if (codeUpdates.length > 0) promises.push(this.handleBulkAction('setIndividualCodes', { codeUpdates }));
-                if (Object.keys(updates).length > 0) promises.push(this.handleBulkAction('bulkEdit', { updates }));
+                    if (newGameName && newGameName !== this.gameName) commonUpdates.game_association = newGameName;
+                    if (newType) commonUpdates.type = newType;
+                    if (newChannel) commonUpdates.channel = newChannel;
 
-                if (promises.length > 0) {
-                    buttonEl.classList.add('btn-loading');
-                    try {
-                        await Promise.all(promises);
-                    } catch (e) {
-                        /* Error handled in handleBulkAction */
-                    } finally {
-                        buttonEl.classList.remove('btn-loading');
+                    // --- ส่วนที่ 2: สร้าง Promises สำหรับอัปเดตทีละรายการ ---
+                    const updatePromises = [];
+                    const selectedIds = Array.from(this.selectedPackageIds);
+
+                    for (const id of selectedIds) {
+                        const originalPackage = this.allPackages.find(p => p.id === id);
+                        if (!originalPackage) continue;
+
+                        const individualChanges = individualUpdates.get(id) || {};
+                        const finalPayload = {
+                            ...originalPackage, // เริ่มจากข้อมูลเดิม
+                            ...commonUpdates,   // ใส่ข้อมูลที่แก้ไขพร้อมกันทั้งหมด
+                            name: individualChanges.name !== undefined ? individualChanges.name : originalPackage.name,
+                            product_code: individualChanges.code !== undefined ? individualChanges.code : originalPackage.product_code,
+                            price: individualChanges.price !== undefined ? individualChanges.price : originalPackage.price
+                        };
+                        
+                        // สร้าง Promise สำหรับส่ง request PUT ไปยัง API ที่มีอยู่แล้ว
+                        const promise = fetch(`${this.API.PACKAGES}/${id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(finalPayload)
+                        });
+                        updatePromises.push(promise);
                     }
+
+                    // --- ส่วนที่ 3: รอให้ทุกอย่างอัปเดตสำเร็จ ---
+                    if (updatePromises.length > 0) {
+                        await Promise.all(updatePromises);
+                        this.showToast('Bulk changes saved successfully!', 'success');
+                        await this.fetchAndRenderPackages(false);
+                    } else {
+                        this.showToast('No changes were detected.', 'info');
+                    }
+
+                } catch (error) {
+                    console.error('Bulk edit failed:', error);
+                    this.showToast('An error occurred while saving.', 'error');
+                } finally {
+                    buttonEl.classList.remove('btn-loading');
+                    this.hideModal(modal);
                 }
-                
-                this.hideModal(modal);
             },
 
             async handleFormSubmit(event) {

@@ -433,3 +433,81 @@ textarea {
 #orders-table th:nth-child(6) { width: 10%; text-align: center; } /* สถานะ */
 #orders-table th:nth-child(7) { width: 8%; }  /* ผู้ทำรายการ */
 #orders-table th:nth-child(8) { width: 5%; }  /* ปุ่มลบ */
+
+/* --- กรอบหลักของปฏิทิน --- */
+.litepicker {
+  font-family: 'Sarabun', system-ui, sans-serif; /* ใช้ฟอนต์เดียวกับเว็บ */
+  font-size: 14px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border);
+}
+
+/* --- หัวข้อเดือน (เช่น 'สิงหาคม 2025') --- */
+.litepicker .month-item-header {
+  padding: 8px 0;
+}
+.litepicker .month-item-header .month-item-name,
+.litepicker .month-item-header .month-item-year {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* --- ปุ่มลูกศรซ้าย-ขวา --- */
+.litepicker .button-previous-month,
+.litepicker .button-next-month {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  transition: background-color .2s ease;
+}
+.litepicker .button-previous-month:hover,
+.litepicker .button-next-month:hover {
+  background-color: var(--bg-subtle);
+}
+/* --- ตัวย่อวันในสัปดาห์ (อา, จ, อ...) --- */
+.litepicker .month-item-weekdays .weekday-item {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  width: 38px;
+  height: 38px;
+  line-height: 38px;
+}
+
+/* --- ตัวเลขวันที่แต่ละวัน --- */
+.litepicker .day-item {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  width: 38px;
+  height: 38px;
+  line-height: 38px;
+  border-radius: 10px; /* ทำให้ขอบมนขึ้น */
+  transition: all .2s ease;
+}
+
+/* --- สไตล์ตอนเอาเมาส์ชี้ และวันที่ถูกเลือก --- */
+.litepicker .day-item:hover {
+  background-color: var(--accent-light);
+  border-radius: 10px;
+}
+.litepicker .day-item.is-in-range {
+  background-color: var(--accent-light);
+  border-radius: 0; /* วันที่อยู่ระหว่างกลาง ไม่ต้องมีขอบมน */
+}
+.litepicker .day-item.is-start-date,
+.litepicker .day-item.is-end-date {
+  background-color: var(--accent);
+  color: #fff;
+}
+.litepicker .day-item.is-start-date {
+  border-radius: 10px 0 0 10px;
+}
+.litepicker .day-item.is-end-date {
+  border-radius: 0 10px 10px 0;
+}
+.litepicker .day-item.is-today {
+    color: var(--accent);
+    font-weight: 700;
+}
