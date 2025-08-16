@@ -135,10 +135,8 @@
 
   function resetForm() {
     el('order-form').reset();
-
-    // Set default value to current local date and time
     const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); // Adjust for local timezone
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
     el('order-date').value = now.toISOString().slice(0, 16);
 
     state.items = [];
@@ -170,7 +168,7 @@
 function renderOrders(orders, total) {
   state.allOrders = orders;
   const tb = qs('#orders-table tbody');
-  tb.innerHTML = ''; // Clear existing rows
+  tb.innerHTML = '';
 
   (orders || []).forEach(o => {
     const tr = document.createElement('tr');
@@ -183,8 +181,7 @@ function renderOrders(orders, total) {
           hour: '2-digit', minute: '2-digit'
         })
       : '';
-
-    // Create and append cells one by one
+    
     tr.innerHTML = `
       <td class="key-data">${o.order_number}</td>
       <td>${formattedDateTime}</td>
@@ -372,7 +369,7 @@ function renderOrders(orders, total) {
     const out = await res.json();
     el('save-result').textContent = isUpdating ? `อัปเดต ${out.order_number} สำเร็จ` : `บันทึกแล้ว: ${out.order_number}`;
     
-    state.currentPage = 1; // กลับไปหน้าแรกทุกครั้งที่ save สำเร็จ
+    state.currentPage = 1;
     await refreshOrders();
     setTimeout(() => resetForm(), 1000);
   }
@@ -402,7 +399,6 @@ function renderOrders(orders, total) {
     
     fillSelect(el('platform'), state.validPlatforms, '— เลือกแพลตฟอร์ม —');
     
-    // Format the full ISO string from DB to the format needed by datetime-local input
     if (orderData.order_date) {
         el('order-date').value = orderData.order_date.slice(0, 16);
     }
@@ -430,6 +426,20 @@ function renderOrders(orders, total) {
 
   document.addEventListener('DOMContentLoaded', () => {
     resetForm();
+    
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(endDate.getDate() - 6);
+
+    const formatDate = (date) => date.toISOString().slice(0, 10);
+    const formattedStartDate = formatDate(startDate);
+    const formattedEndDate = formatDate(endDate);
+
+    const startDateInput = el('filter-start-date');
+    const endDateInput = el('filter-end-date');
+    startDateInput.value = formattedStartDate;
+    endDateInput.value = formattedEndDate;
+
     loadInitialData();
 
     el('game-select').addEventListener('change', refillPackageOptions);
@@ -543,14 +553,19 @@ function renderOrders(orders, total) {
     
     el('pagination-controls').addEventListener('click', handlePaginationClick);
 
-    const startDateInput = el('filter-start-date');
-    const endDateInput = el('filter-end-date');
     new Litepicker({
         element: el('date-range-picker'),
         singleMode: false,
         autoApply: true,
+        startDate: startDate,
+        endDate: endDate,
         format: 'YYYY-MM-DD',
-        separator: ' ถึง ',
+        separator: ' ~ ',
+        numberOfMonths: 1,
+        firstDay: 0,
+        i18n: {
+            'dayNames': ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+        },
         setup: (picker) => {
             picker.on('selected', (date1, date2) => {
                 startDateInput.value = picker.getStartDate().format('YYYY-MM-DD');
