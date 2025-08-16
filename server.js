@@ -493,12 +493,30 @@ app.get('/api/orders/export/csv', async (req, res) => {
             return res.status(404).send('ไม่มีรายการในออเดอร์ที่เลือก');
         }
 
-        const csvHeaders = ['order_number', 'order_date', 'customer_name', 'game_name', 'platform', 'total_paid', 'cost', 'profit', 'status', 'operator', 'topup_channel', 'packages_text', 'note'];
-        let csv = csvHeaders.join(',') + '\n';
+        // 1. กำหนดคอลัมน์จากฐานข้อมูลตามลำดับที่ต้องการ (เพิ่มคอลัมน์ที่ขาดไป)
+        const dbColumns = [
+            'order_number', 'order_date', 'customer_name', 'game_name', 
+            'platform', 'total_paid', 'cost', 'profit', 'status', 
+            'operator', 'topup_channel', 'packages_text', 'note', 
+            'payment_proof_url', 'sales_proof_url'
+        ];
+
+        // 2. กำหนดหัวข้อภาษาไทยให้ตรงกับลำดับด้านบน
+        const thaiHeaders = [
+            'เลขออเดอร์', 'วันที่ทำรายการ', 'ชื่อลูกค้า', 'เกม', 
+            'แพลตฟอร์ม', 'ยอดจ่าย', 'ต้นทุน', 'กำไร', 'สถานะ', 
+            'ผู้ทำรายการ', 'ช่องทางการเติม', 'รายการแพ็กเกจ', 'หมายเหตุ', 
+            'หลักฐานโอนเงิน (URL)', 'หลักฐานปิดการขาย (URL)'
+        ];
+
+        // 3. สร้าง CSV โดยใช้หัวข้อภาษาไทย และเพิ่ม BOM (\ufeff) เพื่อให้ Excel เปิดไฟล์ภาษาไทยได้ถูกต้อง
+        let csv = '\ufeff' + thaiHeaders.join(',') + '\n';
 
         for (const order of orders) {
-            const row = csvHeaders.map(header => {
+            // 4. วนลูปตามลำดับของ dbColumns เพื่อดึงข้อมูลมาเรียงให้ถูกต้อง
+            const row = dbColumns.map(header => {
                 let value = order[header] === null || order[header] === undefined ? '' : String(order[header]);
+                // ปรับปรุงการจัดการกับเครื่องหมาย " และ , ในข้อมูล
                 if (value.includes(',') || value.includes('"') || value.includes('\n')) {
                     value = `"${value.replace(/"/g, '""')}"`;
                 }
