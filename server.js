@@ -338,7 +338,8 @@ app.post('/api/packages/bulk-actions', async (req, res) => {
 // --- Orders API ---
 
 function buildOrdersQuery(queryParams) {
-    const { q = '', status = '', platform = '', startDate, endDate, page = 1, limit = 20 } = queryParams;
+    // 🔽 --- โค้ดใหม่: แก้ไข const เป็น let เพื่อให้แก้ไขค่าได้ --- 🔽
+    let { q = '', status = '', platform = '', startDate, endDate, page = 1, limit = 20 } = queryParams;
     
     // สร้างส่วน WHERE clause พื้นฐาน
     let whereSql = ` FROM orders WHERE 1=1`;
@@ -358,10 +359,14 @@ function buildOrdersQuery(queryParams) {
         params.push(platform);
     }
     if (startDate) {
+        // 🔽 --- โค้ดใหม่: เพิ่มเวลาเริ่มต้นของวัน --- 🔽
+        startDate = `${startDate} 00:00:00`;
         whereSql += ` AND order_date >= $${paramIndex++}`;
         params.push(startDate);
     }
     if (endDate) {
+        // 🔽 --- โค้ดใหม่: เพิ่มเวลาสิ้นสุดของวัน --- 🔽
+        endDate = `${endDate} 23:59:59`;
         whereSql += ` AND order_date <= $${paramIndex++}`;
         params.push(endDate);
     }
