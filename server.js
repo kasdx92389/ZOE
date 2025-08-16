@@ -493,18 +493,18 @@ app.get('/api/orders/export/csv', async (req, res) => {
             return res.status(404).send('ไม่มีรายการในออเดอร์ที่เลือก');
         }
 
-        // 1. กำหนดคอลัมน์จากฐานข้อมูลตามลำดับที่ต้องการ (เพิ่มคอลัมน์ที่ขาดไป)
-        const dbColumns = [
-            'order_number', 'order_date', 'customer_name', 'game_name', 'payment_proof_url',
-            'platform', 'total_paid', 'cost', 'profit', 'status', 'sales_proof_url',
-            'operator', 'topup_channel', 'packages_text', 'note'
+        // 1. กำหนดหัวข้อภาษาไทยตามลำดับที่คุณต้องการ
+        const thaiHeaders = [
+            'เลขออเดอร์', 'วันที่ทำรายการ', 'ยอดจ่าย', 'หลักฐานโอนเงิน (URL)', 'แพลตฟอร์ม',
+            'ชื่อลูกค้า', 'เกม', 'รายการแพ็กเกจ', 'ต้นทุน', 'กำไร',
+            'สถานะ', 'หลักฐานปิดการขาย (URL)', 'ผู้ทำรายการ', 'ช่องทางการเติม', 'หมายเหตุ'
         ];
 
-        // 2. กำหนดหัวข้อภาษาไทย ให้ตรงกับลำดับของภาษาอังกฤษด้านบน
-        const thaiHeaders = [
-            'เลขออเดอร์', 'วันที่ทำรายการ', 'ชื่อลูกค้า', 'เกม', 'หลักฐานโอนเงิน (URL)',
-            'แพลตฟอร์ม', 'ยอดจ่าย', 'ต้นทุน', 'กำไร', 'สถานะ', 'หลักฐานปิดการขาย (URL)',
-            'ผู้ทำรายการ', 'ช่องทางการเติม', 'รายการแพ็กเกจ', 'หมายเหตุ'
+        // 2. กำหนดคอลัมน์จากฐานข้อมูล ให้ตรงกับลำดับของภาษาไทยด้านบน
+        const dbColumns = [
+            'order_number', 'order_date', 'total_paid', 'payment_proof_url', 'platform',
+            'customer_name', 'game_name', 'packages_text', 'cost', 'profit',
+            'status', 'sales_proof_url', 'operator', 'topup_channel', 'note'
         ];
 
         // 3. สร้าง CSV โดยใช้หัวข้อภาษาไทย และเพิ่ม BOM (\ufeff) เพื่อให้ Excel เปิดไฟล์ภาษาไทยได้ถูกต้อง
