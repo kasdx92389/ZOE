@@ -343,13 +343,13 @@ function buildOrdersQuery(queryParams) {
         params.push(platform);
     }
     if (startDate) {
-        // --- โค้ดที่แก้ไขปัญหา Timezone อย่างถาวร ---
-        whereSql += ` AND (order_date AT TIME ZONE 'UTC')::date >= $${paramIndex++}`;
+    // --- โค้ดที่แก้ไขปัญหา Timezone อย่างถาวร ---
+        whereSql += ` AND (order_date AT TIME ZONE 'Asia/Bangkok')::date >= $${paramIndex++}`;
         params.push(startDate);
     }
     if (endDate) {
-        // --- โค้ดที่แก้ไขปัญหา Timezone อย่างถาวร ---
-        whereSql += ` AND (order_date AT TIME ZONE 'UTC')::date <= $${paramIndex++}`;
+    // --- โค้ดที่แก้ไขปัญหา Timezone อย่างถาวร ---
+        whereSql += ` AND (order_date AT TIME ZONE 'Asia/Bangkok')::date <= $${paramIndex++}`;
         params.push(endDate);
     }
 
@@ -495,18 +495,16 @@ app.get('/api/orders/export/csv', async (req, res) => {
 
         // 1. กำหนดคอลัมน์จากฐานข้อมูลตามลำดับที่ต้องการ (เพิ่มคอลัมน์ที่ขาดไป)
         const dbColumns = [
-            'order_number', 'order_date', 'customer_name', 'game_name', 
-            'platform', 'total_paid', 'cost', 'profit', 'status', 
-            'operator', 'topup_channel', 'packages_text', 'note', 
-            'payment_proof_url', 'sales_proof_url'
+            'order_number', 'order_date', 'customer_name', 'game_name', 'payment_proof_url',
+            'platform', 'total_paid', 'cost', 'profit', 'status', 'sales_proof_url',
+            'operator', 'topup_channel', 'packages_text', 'note'
         ];
 
-        // 2. กำหนดหัวข้อภาษาไทยให้ตรงกับลำดับด้านบน
+        // 2. กำหนดหัวข้อภาษาไทย ให้ตรงกับลำดับของภาษาอังกฤษด้านบน
         const thaiHeaders = [
-            'เลขออเดอร์', 'วันที่ทำรายการ', 'ชื่อลูกค้า', 'เกม', 
-            'แพลตฟอร์ม', 'ยอดจ่าย', 'ต้นทุน', 'กำไร', 'สถานะ', 
-            'ผู้ทำรายการ', 'ช่องทางการเติม', 'รายการแพ็กเกจ', 'หมายเหตุ', 
-            'หลักฐานโอนเงิน (URL)', 'หลักฐานปิดการขาย (URL)'
+            'เลขออเดอร์', 'วันที่ทำรายการ', 'ชื่อลูกค้า', 'เกม', 'หลักฐานโอนเงิน (URL)',
+            'แพลตฟอร์ม', 'ยอดจ่าย', 'ต้นทุน', 'กำไร', 'สถานะ', 'หลักฐานปิดการขาย (URL)',
+            'ผู้ทำรายการ', 'ช่องทางการเติม', 'รายการแพ็กเกจ', 'หมายเหตุ'
         ];
 
         // 3. สร้าง CSV โดยใช้หัวข้อภาษาไทย และเพิ่ม BOM (\ufeff) เพื่อให้ Excel เปิดไฟล์ภาษาไทยได้ถูกต้อง
