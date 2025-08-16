@@ -338,6 +338,9 @@ app.post('/api/packages/bulk-actions', async (req, res) => {
 // --- Orders API ---
 
 function buildOrdersQuery(queryParams) {
+    // 🔽 --- โค้ดสำหรับตรวจสอบ --- 🔽
+    console.log("--- Running NEW buildOrdersQuery with CAST ---");
+
     const { q = '', status = '', platform = '', startDate, endDate, page = 1, limit = 20 } = queryParams;
     
     // สร้างส่วน WHERE clause พื้นฐาน
