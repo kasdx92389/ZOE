@@ -493,35 +493,40 @@ app.get('/api/orders/export/csv', async (req, res) => {
             return res.status(404).send('ไม่มีรายการในออเดอร์ที่เลือก');
         }
 
-        // 1. กำหนดหัวข้อภาษาไทยตามลำดับที่คุณต้องการ
         const thaiHeaders = [
             'เลขออเดอร์', 'วันที่ทำรายการ', 'ยอดจ่าย', 'หลักฐานโอนเงิน (URL)', 'แพลตฟอร์ม',
             'ชื่อลูกค้า', 'เกม', 'รายการแพ็กเกจ', 'ต้นทุน', 'กำไร',
             'สถานะ', 'หลักฐานปิดการขาย (URL)', 'ผู้ทำรายการ', 'ช่องทางการเติม', 'หมายเหตุ'
         ];
 
-        // 2. กำหนดคอลัมน์จากฐานข้อมูล ให้ตรงกับลำดับของภาษาไทยด้านบน
         const dbColumns = [
             'order_number', 'order_date', 'total_paid', 'payment_proof_url', 'platform',
             'customer_name', 'game_name', 'packages_text', 'cost', 'profit',
             'status', 'sales_proof_url', 'operator', 'topup_channel', 'note'
         ];
 
-        // 3. สร้าง CSV โดยใช้หัวข้อภาษาไทย และเพิ่ม BOM (\ufeff) เพื่อให้ Excel เปิดไฟล์ภาษาไทยได้ถูกต้อง
         let csv = '\ufeff' + thaiHeaders.join(',') + '\n';
 
+        // --- โค้ดส่วนที่คุณส่งมา ---
         for (const order of orders) {
-            // 4. วนลูปตามลำดับของ dbColumns เพื่อดึงข้อมูลมาเรียงให้ถูกต้อง
             const row = dbColumns.map(header => {
-                let value = order[header] === null || order[header] === undefined ? '' : String(order[header]);
-                // ปรับปรุงการจัดการกับเครื่องหมาย " และ , ในข้อมูล
-                if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-                    value = `"${value.replace(/"/g, '""')}"`;
+                let value = order[header]; 
+
+                if (header === 'order_date' && value) {
+                    const date = new Date(value);
+                    value = date.toLocaleString('en-GB', { timeZone: 'Asia/Bangkok' });
+                } else {
+                    value = value === null || value === undefined ? '' : String(value);
+                }
+
+                if (String(value).includes(',') || String(value).includes('"') || String(value).includes('\n')) {
+                    value = `"${String(value).replace(/"/g, '""')}"`;
                 }
                 return value;
             });
             csv += row.join(',') + '\n';
         }
+        // --------------------------
 
         const fileName = `orders-export-${new Date().toISOString().slice(0, 10)}.csv`;
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
