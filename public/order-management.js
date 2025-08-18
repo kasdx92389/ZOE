@@ -134,12 +134,12 @@
   }
 
   function resetForm() {
-  el('order-form').reset();
+    el('order-form').reset();
 
-  // Set default value to current local date and time
-  const now = new Date();
-  now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); // Adjust for local timezone
-  el('order-date').value = now.toISOString().slice(0, 16);
+    // Set default value to current local date and time
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); // Adjust for local timezone
+    el('order-date').value = now.toISOString().slice(0, 19);
 
     state.items = [];
     fillSelect(el('platform'), state.validPlatforms, '— เลือกแพลตฟอร์ม —');
@@ -234,20 +234,31 @@ function renderOrders(orders, total) {
   }
   
   function refillPackageOptions() {
-    const gameSelect = el('game-select');
-    const packageSelect = el('add-item-package');
-    const game = gameSelect.value;
+  const gameSelect = el('game-select');
+  const packageSelect = el('add-item-package');
+  const game = gameSelect.value;
+  const isEditMode = el('order-form').dataset.mode === 'edit';
 
-    packageSelect.disabled = !game;
-    const list = game ? state.packages.filter(p => p.game_association === game) : [];
+  // ส่วนของการเติม Package ยังทำงานเหมือนเดิม
+  packageSelect.disabled = !game;
+  const gameSpecificPackages = game ? state.packages.filter(p => p.game_association === game) : [];
 
-    packageSelect.innerHTML = '<option value="">— เลือกแพ็กเกจ —</option>' + list.map(p => {
-      const label = `${p.name} (${p.product_code || 'N/A'})`;
-      return `<option value="${p.id}" data-price="${p.price || 0}" data-type="${p.type || ''}" data-channel="${p.channel || ''}">${label}</option>`;
-    }).join('');
+  packageSelect.innerHTML = '<option value="">— เลือกแพ็กเกจ —</option>' + gameSpecificPackages.map(p => {
+    const label = `${p.name} (${p.product_code || 'N/A'})`;
+    return `<option value="${p.id}" data-price="${p.price || 0}" data-type="${p.type || ''}" data-channel="${p.channel || ''}">${label}</option>`;
+  }).join('');
 
-    fillSelect(el('topup-channel'), uniq(list.map(p => p.channel)), '— เลือกช่องทาง —');
+  // ++ REVISED LOGIC FOR TOPUP CHANNEL ++
+  let availableChannels;
+  if (isEditMode) {
+    // ถ้าเป็นโหมดแก้ไข: ดึง "ช่องทาง" ที่มีทั้งหมดจากทุกแพ็กเกจ
+    availableChannels = uniq(state.packages.map(p => p.channel));
+  } else {
+    // ถ้าเป็นโหมดสร้างใหม่: ดึง "ช่องทาง" เฉพาะของเกมที่เลือก
+    availableChannels = uniq(gameSpecificPackages.map(p => p.channel));
   }
+  fillSelect(el('topup-channel'), availableChannels, '— เลือกช่องทาง —');
+}
 
   async function loadInitialData() {
     const params = getCurrentFilters();
@@ -411,7 +422,7 @@ function renderOrders(orders, total) {
     localDate.setMinutes(localDate.getMinutes() - localDate.getTimezoneOffset());
     
     // 3. แปลงเป็น ISO string และตัดให้เหลือรูปแบบที่ input ต้องการ
-    el('order-date').value = localDate.toISOString().slice(0, 16);
+    el('order-date').value = localDate.toISOString().slice(0, 19);
     }
     
     setIfExists(el('game-select'), orderData.game_name);
@@ -438,6 +449,26 @@ function renderOrders(orders, total) {
   document.addEventListener('DOMContentLoaded', () => {
     resetForm();
     
+    // ++ REVISED: Auto-parses pasted date-time string using 'paste' event ++
+    el('order-date').addEventListener('paste', e => {
+      // 1. ป้องกันไม่ให้บราวเซอร์วางข้อความตามปกติ
+      e.preventDefault();
+
+      // 2. ดึงข้อความจากคลิปบอร์ดโดยตรง
+      const pastedText = (e.clipboardData || window.clipboardData).getData('text');
+
+      // 3. ใช้ Regex ตรวจสอบข้อความที่ได้มา
+      const regex = /วันที่:\s*(\d{2})\/(\d{2})\/(\d{4})\s*เวลา:\s*(\d{2}):(\d{2}):(\d{2})/;
+      const match = pastedText.match(regex);
+
+      // 4. ถ้าตรงตามรูปแบบ ให้แปลงและใส่ค่าลงในช่อง input
+      if (match) {
+        const [, day, month, year, hour, minute, second] = match;
+        const formattedDateTime = `${year}-${month}-${day}T${hour}:${minute}:${second}`;
+        e.target.value = formattedDateTime;
+      }
+    });
+
     // 1. สร้าง object ของวันที่สำหรับวันนี้และ 7 วันก่อน
     const endDate = new Date();
     const startDate = new Date();

@@ -344,12 +344,12 @@ function buildOrdersQuery(queryParams) {
     }
     if (startDate) {
     // --- โค้ดที่แก้ไขปัญหา Timezone อย่างถาวร ---
-        whereSql += ` AND (order_date AT TIME ZONE 'Asia/Bangkok')::date >= $${paramIndex++}`;
+        whereSql += ` AND timezone('Asia/Bangkok', order_date::timestamp)::date >= $${paramIndex++}`; // <-- แก้ไขโดยเพิ่ม ::timestamp
         params.push(startDate);
     }
     if (endDate) {
     // --- โค้ดที่แก้ไขปัญหา Timezone อย่างถาวร ---
-        whereSql += ` AND (order_date AT TIME ZONE 'Asia/Bangkok')::date <= $${paramIndex++}`;
+        whereSql += ` AND timezone('Asia/Bangkok', order_date::timestamp)::date <= $${paramIndex++}`; // <-- แก้ไขโดยเพิ่ม ::timestamp
         params.push(endDate);
     }
 
