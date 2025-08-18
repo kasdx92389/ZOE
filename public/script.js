@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function populatePackageSelector(selectedGame) {
             const filteredPackages = allPackages.filter(p => p.game_association === selectedGame && p.is_active === 1);
-        packageSelector.innerHTML = '<option value="">-- เลือกแพ็กเกจ --</option>';
+        packageSelector.innerHTML = '<option value="">— เลือกแพ็กเกจ —</option>';
         if (filteredPackages.length > 0) {
             filteredPackages.forEach(pkg => {
                 const option = document.createElement('option');
@@ -73,7 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             packageSelector.disabled = false;
         } else {
-            packageSelector.innerHTML = '<option value="">-- ไม่มีแพ็กเกจ --</option>';
+            packageSelector.innerHTML = '<option value="">— ไม่มีแพ็กเกจ —</option>';
             packageSelector.disabled = true;
         }
     }
@@ -191,6 +191,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- ส่วนที่เพิ่มเข้ามา ---
+    function formatPackageName(name) {
+      if (!name) return '';
+      return name.replace(/(\d+)/g, (match) => {
+        return Number(match).toLocaleString('en-US');
+      });
+    }
+
+    // --- ส่วนที่แก้ไข ---
     function updateSummaries() {
         if (orderItems.length === 0) {
             initialSummaryEl.value = '@';
@@ -204,10 +213,10 @@ document.addEventListener('DOMContentLoaded', () => {
         let summaryText = orderItems.map(item => {
             const lineTotal = item.quantity * item.price;
             total += lineTotal;
-            return `${item.quantity}x ${item.name} ${item.typeDetail}: ${lineTotal.toFixed(2)} บาท`;
+            return `${item.quantity.toLocaleString('en-US')}x ${formatPackageName(item.name)} ${item.typeDetail}: ${lineTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
         }).join('\n');
         
-        const footer = `\n-----------------------------\n💰ราคาสินค้า ${total.toFixed(2)} บาท\n-----------------------------`;
+        const footer = `\n-----------------------------\n💰ราคาสินค้า ${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท\n-----------------------------`;
         initialSummaryEl.value = `=== สรุปคำสั่งซื้อ ===\n\n${summaryText}${footer}\n\nรบกวนลูกค้าตรวจสอบความถูกต้องของรายการ\nหากถูกต้อง พิมพ์ "ยืนยันออเดอร์" ครับ/ค่ะ`;
         copyInitialBtn.disabled = false;
 
@@ -225,7 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (customerInfoBlock.length > 0) {
             teamSummaryParts.push(gameForOrder);
             teamSummaryParts.push(customerInfoBlock.join('\n'));
-            let teamOrderList = orderItems.map(item => `${item.quantity}x ${item.name} ${item.typeDetail}`);
+            let teamOrderList = orderItems.map(item => `${item.quantity.toLocaleString('en-US')}x ${formatPackageName(item.name)} ${item.typeDetail}`);
             teamSummaryParts.push(teamOrderList.join('\n'));
             
             finalSummaryEl.value = teamSummaryParts.join('\n\n');
