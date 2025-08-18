@@ -475,7 +475,7 @@ function renderOrders(orders, total) {
     startDate.setDate(endDate.getDate() - 6); // ตั้งค่าวันที่ของ startDate เป็น 6 วันก่อนหน้า (รวมเป็น 7 วัน)
 
     // 2. Format วันที่ให้เป็นรูปแบบ YYYY-MM-DD
-    const formatDate = (date) => date.toISOString().slice(0, 10);
+    const formatDate = (d) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }); // YYYY-MM-DD
     const formattedStartDate = formatDate(startDate);
     const formattedEndDate = formatDate(endDate);
 

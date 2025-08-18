@@ -343,13 +343,11 @@ function buildOrdersQuery(queryParams) {
         params.push(platform);
     }
     if (startDate) {
-    // --- โค้ดที่แก้ไขปัญหา Timezone อย่างถาวร ---
-        whereSql += ` AND timezone('Asia/Bangkok', order_date::timestamp)::date >= $${paramIndex++}`; // <-- แก้ไขโดยเพิ่ม ::timestamp
+        whereSql += ` AND (order_date AT TIME ZONE 'Asia/Bangkok')::date >= $${paramIndex++}`;
         params.push(startDate);
     }
     if (endDate) {
-    // --- โค้ดที่แก้ไขปัญหา Timezone อย่างถาวร ---
-        whereSql += ` AND timezone('Asia/Bangkok', order_date::timestamp)::date <= $${paramIndex++}`; // <-- แก้ไขโดยเพิ่ม ::timestamp
+        whereSql += ` AND (order_date AT TIME ZONE 'Asia/Bangkok')::date <= $${paramIndex++}`;
         params.push(endDate);
     }
 
