@@ -148,7 +148,7 @@
     el('save-result').textContent = '';
   }
 
-  function renderItems() {
+  function renderItems(recalculate = true) {
     const tb = qs('#items-table tbody');
     tb.innerHTML = state.items.map((it, idx) => {
       const sum = it.quantity * it.unit_price;
@@ -164,7 +164,12 @@
         </td>
       </tr>`;
     }).join('');
-    updateTotals();
+    
+    if (recalculate) {
+      updateTotals();
+    } else {
+      calcProfit();
+    }
   }
 
 function renderOrders(orders, total) {
@@ -411,37 +416,33 @@ function renderOrders(orders, total) {
     
     updateFormUI('edit', orderData);
     
-    fillSelect(el('platform'), state.validPlatforms, '— เลือกแพลตฟอร์ม —');
-    
-    // Format the full ISO string from DB to the format needed by datetime-local input
     if (orderData.order_date) {
-    // 1. สร้าง Date object จากเวลา UTC ที่ได้จากฐานข้อมูล
-    const localDate = new Date(orderData.order_date);
-    
-    // 2. ชดเชยเวลาด้วย Timezone offset ของเครื่องผู้ใช้
-    localDate.setMinutes(localDate.getMinutes() - localDate.getTimezoneOffset());
-    
-    // 3. แปลงเป็น ISO string และตัดให้เหลือรูปแบบที่ input ต้องการ
-    el('order-date').value = localDate.toISOString().slice(0, 19);
+        const localDate = new Date(orderData.order_date);
+        localDate.setMinutes(localDate.getMinutes() - localDate.getTimezoneOffset());
+        el('order-date').value = localDate.toISOString().slice(0, 19);
     }
     
     setIfExists(el('game-select'), orderData.game_name);
     refillPackageOptions();
     
     setIfExists(el('platform'), orderData.platform);
-    
     setIfExists(el('topup-channel'), orderData.topup_channel);
     setIfExists(el('operator'), orderData.operator);
+    setIfExists(el('status'), orderData.status);
+
     el('customer-name').value = orderData.customer_name || '';
-    el('total-paid').value = orderData.total_paid?.toFixed(2) || '0.00';
-    el('cost').value = orderData.cost?.toFixed(2) || '0.00';
     el('payment-proof').value = orderData.payment_proof_url || '';
     el('sales-proof').value = orderData.sales_proof_url || '';
-    setIfExists(el('status'), orderData.status);
     el('note').value = orderData.note || '';
+
+    // จัดลำดับใหม่: ดึงค่าที่บันทึกไว้มาก่อน
+    el('total-paid').value = orderData.total_paid?.toFixed(2) || '0.00';
+    el('cost').value = orderData.cost?.toFixed(2) || '0.00';
     
     state.items = orderData.items || []; 
-    renderItems();
+
+    // สั่ง render โดยไม่ให้คำนวณยอดรวมใหม่
+    renderItems(false);
     
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
