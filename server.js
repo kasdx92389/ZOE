@@ -343,11 +343,11 @@ function buildOrdersQuery(queryParams) {
         params.push(platform);
     }
     if (startDate) {
-        whereSql += ` AND (order_date AT TIME ZONE 'Asia/Bangkok')::date >= $${paramIndex++}`;
+        whereSql += ` AND ((order_date::timestamptz) AT TIME ZONE 'Asia/Bangkok')::date >= $${paramIndex++}`;
         params.push(startDate);
     }
     if (endDate) {
-        whereSql += ` AND (order_date AT TIME ZONE 'Asia/Bangkok')::date <= $${paramIndex++}`;
+        whereSql += ` AND ((order_date::timestamptz) AT TIME ZONE 'Asia/Bangkok')::date <= $${paramIndex++}`;
         params.push(endDate);
     }
 
@@ -541,3 +541,109 @@ app.get('/api/orders/export/csv', async (req, res) => {
 
 // --- Server Start ---
 app.listen(PORT, () => console.log(`Server is running at http://localhost:${PORT}`));
+/* ========================================================
+ * Summary Page & API (Appended - non-breaking)
+ * ====================================================== */
+
+// Admin Summary page (requires login)
+app.get('/admin/summary', requireLogin, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin-summary.html'));
+});
+
+// Helper: where-clause by Bangkok-local date
+function _buildSummaryWhere(startDate, endDate) {
+  let whereSql = " WHERE 1=1";
+  const params = [];
+  let i = 1;
+  if (startDate) {
+    whereSql += ` AND ((order_date::timestamptz) AT TIME ZONE 'Asia/Bangkok')::date >= $${i++}`;
+    params.push(startDate);
+  }
+  if (endDate) {
+    whereSql += ` AND ((order_date::timestamptz) AT TIME ZONE 'Asia/Bangkok')::date <= $${i++}`;
+    params.push(endDate);
+  }
+  return { whereSql, params };
+}
+
+// Aggregated Summary API
+// GET /api/summary?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
+app.get('/api/summary', async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    const { whereSql, params } = _buildSummaryWhere(startDate, endDate);
+
+    // Totals
+    const totalsSql = `
+      SELECT 
+        COUNT(*)::int AS order_count,
+        COALESCE(SUM(total_paid),0)::numeric AS revenue,
+        COALESCE(SUM(cost),0)::numeric AS cost,
+        COALESCE(SUM(profit),0)::numeric AS profit
+      FROM orders` + whereSql;
+    const totalsRow = (await pgPool.query(totalsSql, params)).rows?.[0] || {};
+
+    // Daily series
+    const dailySql = `
+      SELECT 
+        ((order_date::timestamptz) AT TIME ZONE 'Asia/Bangkok')::date AS day,
+        COALESCE(SUM(total_paid),0)::numeric AS revenue,
+        COALESCE(SUM(cost),0)::numeric AS cost,
+        COALESCE(SUM(profit),0)::numeric AS profit
+      FROM orders` + whereSql + " GROUP BY 1 ORDER BY 1";
+    const daily = (await pgPool.query(dailySql, params)).rows || [];
+
+    // Revenue by game (top 10)
+    const whereJoin = whereSql.replace(/order_date/g, 'o.order_date');
+    const byGameSql = `
+      SELECT
+        COALESCE(o.game_name, 'UNKNOWN') AS game,
+        COALESCE(SUM(oi.total_price),0)::numeric AS revenue,
+        COALESCE(SUM(oi.cost),0)::numeric AS cost,
+        COALESCE(SUM(oi.quantity),0)::numeric AS units
+      FROM order_items oi
+      JOIN orders o ON o.id = oi.order_id` + whereJoin + `
+      GROUP BY 1
+      ORDER BY revenue DESC NULLS LAST
+      LIMIT 10`;
+    const byGame = (await pgPool.query(byGameSql, params)).rows || [];
+
+    // Revenue by platform
+    const byPlatformSql = `
+      SELECT 
+        COALESCE(platform,'UNKNOWN') AS platform,
+        COUNT(*)::int AS order_count,
+        COALESCE(SUM(total_paid),0)::numeric AS revenue
+      FROM orders` + whereSql + `
+      GROUP BY 1
+      ORDER BY revenue DESC NULLS LAST`;
+    const byPlatform = (await pgPool.query(byPlatformSql, params)).rows || [];
+
+    // Status distribution
+    const byStatusSql = `
+      SELECT 
+        COALESCE(status,'UNKNOWN') AS status,
+        COUNT(*)::int AS count
+      FROM orders` + whereSql + " GROUP BY 1 ORDER BY count DESC NULLS LAST";
+    const byStatus = (await pgPool.query(byStatusSql, params)).rows || [];
+
+    res.json({
+      totals: {
+        orders: Number(totalsRow.order_count || 0),
+        revenue: Number(totalsRow.revenue || 0),
+        cost: Number(totalsRow.cost || 0),
+        profit: Number(totalsRow.profit || 0),
+        margin: Number(totalsRow.revenue || 0) > 0
+          ? Number(totalsRow.profit || 0) / Number(totalsRow.revenue || 0)
+          : 0
+      },
+      daily,
+      byGame,
+      byPlatform,
+      byStatus
+    });
+  } catch (err) {
+    console.error('Summary API error:', err);
+    res.status(500).json({ error: 'Failed to load summary' });
+  }
+});

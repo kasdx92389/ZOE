@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>สรุปภาพรวมคำสั่งซื้อ</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    
+    <link rel="stylesheet" href="/admin-summary.css">
+</head>
+<body>
+    <div class="wrap">
+        <div class="stack">
+            <header class="summary-header">
+                <div class="header-title">
+                    <a href="/admin/home" class="home-link" title="กลับหน้าหลัก"><i class="fas fa-home"></i></a>
+                    <h1>สรุปภาพรวม</h1>
+                </div>
+                <div class="filter-controls">
+                    <input type="date" id="startDate" class="input">
+                    <input type="date" id="endDate" class="input">
+                    <button class="btn" data-days="7">7 วัน</button>
+                    <button class="btn" data-days="30">30 วัน</button>
+                    <button class="btn" data-days="90">90 วัน</button>
+                    <button id="refreshBtn" class="btn primary">
+                        <i class="fas fa-sync-alt"></i>
+                        <span>รีเฟรช</span>
+                    </button>
+                </div>
+            </header>
+
+            <section class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-icon"><i class="fas fa-shopping-cart"></i></div>
+                    <div class="kpi-info">
+                        <span class="kpi-label">จำนวนออเดอร์</span>
+                        <span class="kpi-value" id="kpiOrders">-</span>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon"><i class="fas fa-hand-holding-usd"></i></div>
+                    <div class="kpi-info">
+                        <span class="kpi-label">รายได้รวม</span>
+                        <span class="kpi-value" id="kpiRevenue">-</span>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon"><i class="fas fa-dollar-sign"></i></div>
+                    <div class="kpi-info">
+                        <span class="kpi-label">ต้นทุนรวม</span>
+                        <span class="kpi-value" id="kpiCost">-</span>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon"><i class="fas fa-money-bill-wave"></i></div>
+                    <div class="kpi-info">
+                        <span class="kpi-label">กำไรสุทธิ</span>
+                        <span class="kpi-value" id="kpiProfit">-</span>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon"><i class="fas fa-percent"></i></div>
+                    <div class="kpi-info">
+                        <span class="kpi-label">อัตรากำไร</span>
+                        <span class="kpi-value" id="kpiProfitMargin">-</span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="charts-grid">
+                <div class="card">
+                    <h3 class="chart-title"><i class="fas fa-calendar-alt"></i> สรุปรายวัน</h3>
+                    <div class="chart-container">
+                        <canvas id="dailyChart"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3 class="chart-title"><i class="fas fa-gamepad"></i> รายได้ตามเกม</h3>
+                    <div class="chart-container">
+                        <canvas id="gameChart"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3 class="chart-title"><i class="fas fa-desktop"></i> รายได้ตามแพลตฟอร์ม</h3>
+                    <div class="chart-container">
+                        <canvas id="platformChart"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3 class="chart-title"><i class="fas fa-info-circle"></i> สถานะออเดอร์</h3>
+                    <div class="chart-container">
+                        <canvas id="statusChart"></canvas>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/admin-summary.js"></script>
+</body>
+</html>
