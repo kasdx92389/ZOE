@@ -1,9 +1,9 @@
-// /public/admin-summary.js  (REPLACE ENTIRE FILE)
 document.addEventListener('DOMContentLoaded', () => {
   // --- Elements ---
   const startDateInput = document.getElementById('startDate');
   const endDateInput = document.getElementById('endDate');
   const refreshBtn = document.getElementById('refreshBtn');
+  const thisMonthBtn = document.getElementById('btn-this-month');
   const filterButtons = document.querySelectorAll('.btn[data-days]');
 
   // --- State ---
@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Init ---
   function init() {
     refreshBtn.addEventListener('click', loadSummary);
+
     filterButtons.forEach(btn => {
       btn.addEventListener('click', e => {
         const days = parseInt(e.currentTarget.dataset.days);
@@ -19,8 +20,13 @@ document.addEventListener('DOMContentLoaded', () => {
         loadSummary();
       });
     });
-    // ให้ default = 7 วัน เหมือนหน้า Order Management
-    applyQuickDateRange(7);
+    
+    thisMonthBtn.addEventListener('click', () => {
+        applyThisMonthRange();
+        loadSummary();
+    });
+
+    applyQuickDateRange(30);
     loadSummary();
   }
 
@@ -33,11 +39,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const qs = new URLSearchParams({ startDate, endDate });
 
     try {
-      // 1) ใช้สรุปที่คำนวณบนเซิร์ฟเวอร์ (ถูกต้องตาม timezone และไม่มีปัญหา floating)
       const res = await fetch(`/api/summary?${qs.toString()}`);
       if (!res.ok) throw new Error(`Server responded ${res.status}`);
       const s = await res.json();
-
       renderKpisFromTotals(s.totals);
 
       const dailySummary = {
@@ -60,7 +64,6 @@ document.addEventListener('DOMContentLoaded', () => {
       renderCharts({ dailySummary, revenueByGame, revenueByPlatform, orderStatus });
     } catch (err) {
       console.warn('Summary API failed, fallback to orders:', err);
-      // 2) สำรอง: รวมจาก /api/orders (ยังใช้ Bangkok TZ เพื่อกันเพี้ยน)
       try {
         const res2 = await fetch(`/api/orders?${qs.toString()}&limit=10000`);
         if (!res2.ok) throw new Error(`Server responded ${res2.status}`);
@@ -89,7 +92,38 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // --- KPI ---
+  function applyThisMonthRange() {
+      const tz = 'Asia/Bangkok';
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+
+      startDateInput.value = firstDay.toLocaleDateString('en-CA', { timeZone: tz });
+      endDateInput.value = lastDay.toLocaleDateString('en-CA', { timeZone: tz });
+
+      setActiveFilterButton(thisMonthBtn);
+  }
+
+  function applyQuickDateRange(days) {
+    const tz = 'Asia/Bangkok';
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - (days - 1));
+    endDateInput.value = end.toLocaleDateString('en-CA', { timeZone: tz });
+    startDateInput.value = start.toLocaleDateString('en-CA', { timeZone: tz });
+    setActiveFilterButton(document.querySelector(`.btn[data-days="${days}"]`));
+  }
+  
+  function setActiveFilterButton(activeButton) {
+      document.querySelectorAll('.filter-controls .btn').forEach(b => b.classList.remove('active'));
+      if (activeButton) {
+          activeButton.classList.add('active');
+      }
+  }
+  
   function renderKpisFromTotals(t = {}) {
     const revenue = toNum(t.revenue);
     const cost = toNum(t.cost);
@@ -112,7 +146,6 @@ document.addEventListener('DOMContentLoaded', () => {
     el('kpiProfitMargin').textContent = formatPercentage((kpis.profitMargin || 0));
   }
 
-  // --- Charts ---
   function renderCharts(d = {}) {
     const palette = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6'];
 
@@ -132,21 +165,6 @@ document.addEventListener('DOMContentLoaded', () => {
       charts.status, 'statusChart', 'pie', d.orderStatus,
       { backgroundColor: palette }
     );
-  }
-
-  // --- Utils ---
-  function applyQuickDateRange(days) {
-    const tz = 'Asia/Bangkok';
-    const end = new Date();
-    const start = new Date();
-    start.setDate(end.getDate() - (days - 1));
-    endDateInput.value = end.toLocaleDateString('en-CA', { timeZone: tz });
-    startDateInput.value = start.toLocaleDateString('en-CA', { timeZone: tz });
-    setActiveFilterButton(document.querySelector(`.btn[data-days="${days}"]`));
-  }
-  function setActiveFilterButton(btn) {
-    filterButtons.forEach(b => b.classList.remove('active'));
-    if (btn) btn.classList.add('active');
   }
 
   const toNum = v => {
