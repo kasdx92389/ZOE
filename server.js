@@ -505,6 +505,7 @@ app.get('/api/orders/export/csv', async (req, res) => {
 
         let csv = '\ufeff' + thaiHeaders.join(',') + '\n';
 
+        // --- โค้ดส่วนที่คุณส่งมา ---
         for (const order of orders) {
             const row = dbColumns.map(header => {
                 let value = order[header]; 
@@ -523,6 +524,7 @@ app.get('/api/orders/export/csv', async (req, res) => {
             });
             csv += row.join(',') + '\n';
         }
+        // --------------------------
 
         const fileName = `orders-export-${new Date().toISOString().slice(0, 10)}.csv`;
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
@@ -539,7 +541,6 @@ app.get('/api/orders/export/csv', async (req, res) => {
 
 // --- Server Start ---
 app.listen(PORT, () => console.log(`Server is running at http://localhost:${PORT}`));
-
 /* ========================================================
  * Summary Page & API (Appended - non-breaking)
  * ====================================================== */
@@ -549,89 +550,82 @@ app.get('/admin/summary', requireLogin, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin-summary.html'));
 });
 
-// Helper: where-clause by Bangkok-local date.
-// Accepts an optional object for additional filters like status.
-function _buildSummaryWhere(startDate, endDate, filters = {}) {
-  let whereClauses = ["1=1"];
+// Helper: where-clause by Bangkok-local date
+function _buildSummaryWhere(startDate, endDate) {
+  let whereSql = " WHERE 1=1";
   const params = [];
   let i = 1;
-
-  if (filters.status) {
-    whereClauses.push(`status = $${i++}`);
-    params.push(filters.status);
-  }
-  
   if (startDate) {
-    whereClauses.push(`((order_date::timestamptz) AT TIME ZONE 'Asia/Bangkok')::date >= $${i++}`);
+    whereSql += ` AND ((order_date::timestamptz) AT TIME ZONE 'Asia/Bangkok')::date >= $${i++}`;
     params.push(startDate);
   }
   if (endDate) {
-    whereClauses.push(`((order_date::timestamptz) AT TIME ZONE 'Asia/Bangkok')::date <= $${i++}`);
+    whereSql += ` AND ((order_date::timestamptz) AT TIME ZONE 'Asia/Bangkok')::date <= $${i++}`;
     params.push(endDate);
   }
-  
-  return { whereSql: ` WHERE ${whereClauses.join(' AND ')}`, params };
+  return { whereSql, params };
 }
-
 
 // Aggregated Summary API
 // GET /api/summary?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
 app.get('/api/summary', async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
+    const { whereSql, params } = _buildSummaryWhere(startDate, endDate);
 
-    // Build WHERE clauses: one for successful orders, one for all orders.
-    const { whereSql: successWhere, params: successParams } = _buildSummaryWhere(startDate, endDate, { status: 'รายการสำเร็จ' });
-    const { whereSql: allWhere, params: allParams } = _buildSummaryWhere(startDate, endDate);
-
-    // Totals (from successful orders only)
+    // Totals
     const totalsSql = `
       SELECT 
         COUNT(*)::int AS order_count,
         COALESCE(SUM(total_paid),0)::numeric AS revenue,
         COALESCE(SUM(cost),0)::numeric AS cost,
         COALESCE(SUM(profit),0)::numeric AS profit
-      FROM orders` + successWhere;
-    const totalsRow = (await pgPool.query(totalsSql, successParams)).rows?.[0] || {};
+      FROM orders` + whereSql;
+    const totalsRow = (await pgPool.query(totalsSql, params)).rows?.[0] || {};
 
-    // Daily series (from successful orders only)
+    // Daily series
     const dailySql = `
       SELECT 
         ((order_date::timestamptz) AT TIME ZONE 'Asia/Bangkok')::date AS day,
-        COALESCE(SUM(total_paid),0)::numeric AS revenue
-      FROM orders` + successWhere + " GROUP BY 1 ORDER BY 1";
-    const daily = (await pgPool.query(dailySql, successParams)).rows || [];
+        COALESCE(SUM(total_paid),0)::numeric AS revenue,
+        COALESCE(SUM(cost),0)::numeric AS cost,
+        COALESCE(SUM(profit),0)::numeric AS profit
+      FROM orders` + whereSql + " GROUP BY 1 ORDER BY 1";
+    const daily = (await pgPool.query(dailySql, params)).rows || [];
 
-    // Revenue by game (from successful orders only)
-    const whereJoin = successWhere.replace(/order_date/g, 'o.order_date').replace(/status/g, 'o.status');
+    // Revenue by game (top 10)
+    const whereJoin = whereSql.replace(/order_date/g, 'o.order_date');
     const byGameSql = `
       SELECT
         COALESCE(o.game_name, 'UNKNOWN') AS game,
-        COALESCE(SUM(oi.total_price),0)::numeric AS revenue
+        COALESCE(SUM(oi.total_price),0)::numeric AS revenue,
+        COALESCE(SUM(oi.cost),0)::numeric AS cost,
+        COALESCE(SUM(oi.quantity),0)::numeric AS units
       FROM order_items oi
       JOIN orders o ON o.id = oi.order_id` + whereJoin + `
       GROUP BY 1
       ORDER BY revenue DESC NULLS LAST
       LIMIT 10`;
-    const byGame = (await pgPool.query(byGameSql, successParams)).rows || [];
+    const byGame = (await pgPool.query(byGameSql, params)).rows || [];
 
-    // Revenue by platform (from successful orders only)
+    // Revenue by platform
     const byPlatformSql = `
       SELECT 
         COALESCE(platform,'UNKNOWN') AS platform,
+        COUNT(*)::int AS order_count,
         COALESCE(SUM(total_paid),0)::numeric AS revenue
-      FROM orders` + successWhere + `
+      FROM orders` + whereSql + `
       GROUP BY 1
       ORDER BY revenue DESC NULLS LAST`;
-    const byPlatform = (await pgPool.query(byPlatformSql, successParams)).rows || [];
+    const byPlatform = (await pgPool.query(byPlatformSql, params)).rows || [];
 
-    // Status distribution (from ALL orders)
+    // Status distribution
     const byStatusSql = `
       SELECT 
         COALESCE(status,'UNKNOWN') AS status,
         COUNT(*)::int AS count
-      FROM orders` + allWhere + " GROUP BY 1 ORDER BY count DESC NULLS LAST";
-    const byStatus = (await pgPool.query(byStatusSql, allParams)).rows || [];
+      FROM orders` + whereSql + " GROUP BY 1 ORDER BY count DESC NULLS LAST";
+    const byStatus = (await pgPool.query(byStatusSql, params)).rows || [];
 
     res.json({
       totals: {
@@ -639,6 +633,9 @@ app.get('/api/summary', async (req, res) => {
         revenue: Number(totalsRow.revenue || 0),
         cost: Number(totalsRow.cost || 0),
         profit: Number(totalsRow.profit || 0),
+        margin: Number(totalsRow.revenue || 0) > 0
+          ? Number(totalsRow.profit || 0) / Number(totalsRow.revenue || 0)
+          : 0
       },
       daily,
       byGame,
