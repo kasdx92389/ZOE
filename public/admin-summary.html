@@ -21,7 +21,7 @@
                 <div class="filter-controls">
                     <input type="date" id="startDate" class="input">
                     <input type="date" id="endDate" class="input">
-                    <button id="btn-this-month" class="btn">เดือนนี้</button>
+                    <button id="btn-this-month" class="btn">เดือนนี้</button> 
                     <button class="btn" data-days="7">7 วัน</button>
                     <button class="btn" data-days="30">30 วัน</button>
                     <button class="btn" data-days="90">90 วัน</button>
@@ -74,13 +74,19 @@
 
             <section class="charts-grid">
                 <div class="card">
-                    <h3 class="chart-title"><i class="fas fa-calendar-alt"></i> สรุปรายวัน</h3>
+                    <h3 class="chart-title"><i class="fas fa-chart-line"></i> รายได้รายวัน</h3>
                     <div class="chart-container">
-                        <canvas id="dailyChart"></canvas>
+                        <canvas id="dailyRevenueChart"></canvas>
                     </div>
                 </div>
                 <div class="card">
-                    <h3 class="chart-title"><i class="fas fa-gamepad"></i> รายได้ตามเกม</h3>
+                    <h3 class="chart-title"><i class="fas fa-money-bill-wave"></i> กำไรสุทธิรายวัน</h3>
+                    <div class="chart-container">
+                        <canvas id="dailyProfitChart"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3 class="chart-title"><i class="fas fa-gamepad"></i> รายได้และกำไรตามเกม</h3>
                     <div class="chart-container">
                         <canvas id="gameChart"></canvas>
                     </div>
@@ -89,6 +95,12 @@
                     <h3 class="chart-title"><i class="fas fa-desktop"></i> รายได้ตามแพลตฟอร์ม</h3>
                     <div class="chart-container">
                         <canvas id="platformChart"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3 class="chart-title"><i class="fas fa-user-circle"></i> รายได้ตามผู้ทำรายการ</h3>
+                    <div class="chart-container">
+                        <canvas id="operatorChart"></canvas>
                     </div>
                 </div>
                 <div class="card">
