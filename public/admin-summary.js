@@ -4,7 +4,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const endDateInput = document.getElementById('endDate');
   const refreshBtn = document.getElementById('refreshBtn');
   const thisMonthBtn = document.getElementById('btn-this-month');
-  const filterButtons = document.querySelectorAll('.btn[data-days]');
+  // แก้ไข: เลือกปุ่มทั้งหมด รวมถึงปุ่ม 'ทั้งหมด'
+  const filterButtons = document.querySelectorAll('.btn[data-days], .btn[data-all]');
+  const allDataButton = document.querySelector('.btn[data-all="true"]');
 
   // --- State ---
   let charts = { daily: null, game: null, platform: null, status: null };
@@ -13,10 +15,16 @@ document.addEventListener('DOMContentLoaded', () => {
   function init() {
     refreshBtn.addEventListener('click', loadSummary);
 
+    // แก้ไข: ใช้ filterButtons ที่เลือกปุ่มทั้งหมด
     filterButtons.forEach(btn => {
       btn.addEventListener('click', e => {
-        const days = parseInt(e.currentTarget.dataset.days);
-        applyQuickDateRange(days);
+        const target = e.currentTarget;
+        if (target.dataset.days) {
+            const days = parseInt(target.dataset.days);
+            applyQuickDateRange(days);
+        } else if (target.dataset.all) {
+            applyAllDateRange();
+        }
         loadSummary();
       });
     });
@@ -26,7 +34,8 @@ document.addEventListener('DOMContentLoaded', () => {
         loadSummary();
     });
 
-    applyQuickDateRange(30);
+    // แก้ไข: ตั้งค่าเริ่มต้นเป็น "เดือนนี้"
+    applyThisMonthRange();
     loadSummary();
   }
 
@@ -34,9 +43,10 @@ document.addEventListener('DOMContentLoaded', () => {
   async function loadSummary() {
     const startDate = startDateInput.value;
     const endDate = endDateInput.value;
-    if (!startDate || !endDate) return alert('โปรดเลือกช่วงวันที่');
-
-    const qs = new URLSearchParams({ startDate, endDate });
+    // แก้ไข: อนุญาตให้ startDate และ endDate เป็นค่าว่างได้ (สำหรับปุ่ม 'ทั้งหมด')
+    const qs = new URLSearchParams();
+    if (startDate) qs.append('startDate', startDate);
+    if (endDate) qs.append('endDate', endDate);
 
     try {
       const res = await fetch(`/api/summary?${qs.toString()}`);
@@ -251,6 +261,13 @@ document.addEventListener('DOMContentLoaded', () => {
     endDateInput.value = end.toLocaleDateString('en-CA', { timeZone: tz });
     startDateInput.value = start.toLocaleDateString('en-CA', { timeZone: tz });
     setActiveFilterButton(document.querySelector(`.btn[data-days="${days}"]`));
+  }
+
+  // เพิ่มฟังก์ชันใหม่สำหรับปุ่ม 'ทั้งหมด'
+  function applyAllDateRange() {
+      startDateInput.value = '';
+      endDateInput.value = '';
+      setActiveFilterButton(allDataButton);
   }
   
   function setActiveFilterButton(activeButton) {
