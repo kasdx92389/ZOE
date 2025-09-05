@@ -1,0 +1,268 @@
+/* --- Variables & Base --- */
+:root {
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --text: #0f172a;
+    --muted: #64748b;
+    --border: #e2e8f0;
+    --bg-subtle: #f1f5f9;
+    --accent: #4f46e5;
+    --accent-light: #eef2ff;
+    --radius: 12px;
+    --shadow: 0 1px 2px rgba(0,0,0,.05);
+}
+
+html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Sarabun', system-ui, sans-serif;
+    font-size: 14px;
+    margin: 0;
+}
+
+/* --- Main Layout --- */
+.wrap {
+    max-width: 1400px;
+    margin: 24px auto;
+    padding: 0 24px;
+}
+.stack {
+    display: grid;
+    gap: 24px;
+}
+
+/* --- General Components --- */
+.card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 24px;
+}
+
+.input, .btn {
+    box-sizing: border-box;
+    border: 1px solid var(--border);
+    background: var(--card);
+    border-radius: 8px;
+    height: 38px;
+    padding: 0 12px;
+    outline: none;
+    font-size: 14px;
+    font-family: inherit;
+    transition: all .2s ease;
+}
+
+.input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    color: #334155;
+    white-space: nowrap;
+}
+.btn:hover { background: var(--bg-subtle); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { background: #4338ca; }
+.btn.active {
+    background-color: var(--accent-light);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* --- Header Section --- */
+.summary-header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    background: var(--card);
+    padding: 16px 24px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+}
+
+.header-title {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+.header-title h1 {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0;
+}
+.home-link {
+    font-size: 20px;
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+.home-link:hover { color: var(--accent); }
+
+.filter-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+/* --- KPI Section --- */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+}
+.kpi-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+.kpi-icon {
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-light);
+    color: var(--accent);
+    font-size: 20px;
+}
+.kpi-label {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 2px;
+}
+.kpi-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.2;
+}
+
+/* --- Charts Section --- */
+.charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+.chart-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0 0 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text);
+}
+.chart-title .fas { color: var(--muted); }
+
+.chart-container {
+    height: 300px;
+    position: relative;
+}
+
+canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* --- Responsive Adjustments --- */
+@media (max-width: 1200px) {
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .wrap { padding: 0 16px; margin: 16px auto; }
+    .summary-header { flex-direction: column; align-items: stretch; }
+    .header-title { justify-content: center; }
+    .filter-controls { flex-direction: column; }
+    .filter-controls > * { width: 100%; }
+    .kpi-grid { grid-template-columns: 1fr 1fr; }
+    .kpi-value { font-size: 20px; }
+}
+
+@media (max-width: 480px) {
+    .kpi-grid { grid-template-columns: 1fr; }
+}
+/* --- KPI Section --- */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+}
+.kpi-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+.kpi-icon {
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-light);
+    color: var(--accent);
+    font-size: 20px;
+}
+.kpi-info { /* ✅ เพิ่มส่วนนี้ */
+    display: flex;
+    flex-direction: column; /* จัดเรียงเป็นคอลัมน์ (แนวตั้ง) */
+    justify-content: center; /* จัดให้อยู่ตรงกลางแนวตั้ง */
+    flex-grow: 1; /* ให้ใช้พื้นที่ที่เหลือ */
+}
+.kpi-label {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 2px;
+    line-height: 1; /* ลดระยะห่างบรรทัด */
+    white-space: nowrap; /* ป้องกันข้อความขึ้นบรรทัดใหม่ */
+    overflow: hidden; /* ซ่อนส่วนเกินหากจำเป็น */
+    text-overflow: ellipsis; /* แสดง ... ถ้าข้อความยาวเกิน */
+}
+.kpi-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.2;
+}
+
+/* --- Responsive Adjustments --- */
+@media (max-width: 768px) {
+    /* ... โค้ด Responsive อื่นๆ (ไม่ต้องเปลี่ยน) ... */
+    .kpi-grid { grid-template-columns: 1fr 1fr; }
+    .kpi-value { font-size: 20px; }
+    /* ✅ แก้ไขเพิ่มเติมสำหรับมือถือ: ลดขนาดฟอนต์ไอคอน KPI */
+    .kpi-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 18px;
+    }
+}
+
+@media (max-width: 480px) {
+    .kpi-grid { grid-template-columns: 1fr; }
+}

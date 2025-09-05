@@ -1,0 +1,207 @@
+/* --- Global Styles & Font Import --- */
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;700;800&display=swap');
+
+:root {
+    --background-light: #F9FAFB;
+    --card-background: #FFFFFF;
+    --border-color: #E5E7EB;
+    --highlight-bg: #F5F3FF;
+    --blockquote-bg: #F9FAFB;
+    
+    --text-primary: #374151;
+    --text-secondary: #6B7280;
+    --text-heading: #111827;
+    --accent-purple: #7C3AED;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Sarabun', sans-serif;
+    background-color: var(--background-light);
+    color: var(--text-primary);
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+
+    /* --- เพิ่มเข้ามาใหม่เพื่อการตัดคำภาษาไทย --- */
+    word-break: thai;
+    overflow-wrap: break-word;
+    line-break: strict;
+}
+
+/* --- Main Container --- */
+.container {
+    max-width: 800px;
+    margin: 60px auto;
+    background-color: var(--card-background);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    box-shadow: 0 10px 30px -15px rgba(0, 0, 0, 0.07);
+    overflow: hidden;
+}
+
+/* --- Header Section --- */
+header {
+    padding: 50px 50px 30px 50px;
+    text-align: center;
+}
+
+header h1 {
+    font-size: 2.35rem;
+    font-weight: 800;
+    color: var(--text-heading);
+    letter-spacing: -0.5px;
+}
+
+/* --- Main Content Area --- */
+.terms-content {
+    padding: 0 50px 50px 50px;
+}
+
+section {
+    padding-top: 2rem;
+}
+
+/* --- Styled Horizontal Rule (HR) for section breaks --- */
+hr {
+    border: 0;
+    height: 1px;
+    background-color: var(--border-color);
+    margin: 2.5rem 0;
+}
+
+/* --- Typography & Readability --- */
+h2 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-heading);
+    margin-bottom: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+h2 i {
+    color: var(--accent-purple);
+    font-size: 1.5rem;
+    width: 28px;
+    text-align: center;
+}
+
+h3 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text-heading);
+    margin-top: 2.5rem;
+    margin-bottom: 1rem;
+}
+
+p, li {
+    line-height: 1.9;
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+    max-width: 75ch;
+}
+p:last-child, li:last-child {
+    margin-bottom: 0;
+}
+
+strong {
+    color: var(--text-heading);
+    font-weight: 700;
+}
+
+/* --- Special Boxes & Lists --- */
+.highlight-box {
+    background-color: var(--highlight-bg);
+    padding: 30px;
+    margin: 1rem 0 0 0;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+}
+.highlight-box p {
+    font-size: 1.1rem;
+    line-height: 1.8;
+}
+
+/* --- Blockquote for emphasizing critical clauses --- */
+blockquote {
+    background-color: var(--blockquote-bg);
+    border-left: 4px solid var(--accent-purple);
+    margin: 1.5rem 0;
+    padding: 20px 25px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    border-left-width: 4px;
+}
+
+blockquote p {
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: var(--text-heading);
+}
+
+.contact-list {
+    list-style: none;
+    padding-left: 0;
+}
+
+/* --- Footer --- */
+footer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    
+    padding: 25px 50px;
+    background-color: #F9FAFB;
+    border-top: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+footer p {
+    margin: 0;
+}
+
+
+/* --- Responsive Design --- */
+@media (max-width: 768px) {
+    .container { margin: 40px 20px; }
+    header, .terms-content { padding-left: 30px; padding-right: 30px; }
+    header h1 { font-size: 2.25rem; }
+    h2 { font-size: 1.6rem; }
+}
+
+/* --- ปรับปรุงใหม่สำหรับหน้าจอมือถือ --- */
+@media (max-width: 480px) {
+    body { 
+        font-size: 16px; /* ปรับขนาดตัวอักษรพื้นฐานให้เล็กลงเล็กน้อย */
+    }
+    .container {
+        margin: 0;
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+    }
+    header, .terms-content { 
+        padding: 25px 20px; /* ลด padding ด้านข้างเล็กน้อย */
+    }
+    header h1 { 
+        font-size: 1.6rem; /* ลดขนาดหัวข้อหลัก */
+    }
+    h2 {
+        font-size: 1.4rem; /* ลดขนาดหัวข้อรอง */
+    }
+    h3 {
+        font-size: 1.1rem; /* ลดขนาดหัวข้อย่อย */
+        margin-top: 2rem;
+    }
+    p, li {
+        line-height: 1.8; /* ลดความสูงระหว่างบรรทัดลงเล็กน้อย */
+    }
+}

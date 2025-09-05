@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #6a5af9;
+            --success-color: #2a9d8f;
+            --text-color: #333;
+            --grey-text: #6b7280;
+            --background-color: #f8f7fc;
+            --card-background: #ffffff;
+            --border-color: #e0e0e0;
+        }
+        * { box-sizing: border-box; }
+        body { font-family: 'Sarabun', sans-serif; background-color: var(--background-color); display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; padding: 20px; }
+        .login-card { background-color: var(--card-background); padding: 40px; border-radius: 16px; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08); width: 100%; max-width: 380px; }
+        
+        form { display: flex; flex-direction: column; }
+        .form-group { margin-bottom: 16px; }
+        .password-wrapper { position: relative; width: 100%; }
+        .toggle-password-icon { position: absolute; top: 50%; right: 15px; transform: translateY(-50%); cursor: pointer; color: #aaa; width: 20px; height: 20px; }
+        .toggle-password-icon svg { width: 100%; height: 100%; }
+        input[type="text"], input[type="password"], button { width: 100%; padding: 14px; border-radius: 8px; font-size: 1em; font-family: 'Sarabun', sans-serif; height: 50px; }
+        input[type="text"], input[type="password"] { border: 1px solid var(--border-color); padding-right: 45px; }
+        input:focus { outline: none; border-color: var(--primary-color); }
+        button { border: none; background-color: var(--primary-color); color: white; font-weight: 500; cursor: pointer; transition: background-color 0.2s; margin-top: 8px; }
+        button:hover { background-color: #5848d9; }
+        .form-options { display: flex; justify-content: flex-end; align-items: center; font-size: 0.9em; margin-bottom: 24px; }
+        .remember-me { display: flex; align-items: center; gap: 0.5rem; }
+        a { color: var(--primary-color); text-decoration: none; font-weight: 500; }
+        a:hover { text-decoration: underline; }
+
+        /* CSS สำหรับ Pop-up */
+        .popup-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(35, 31, 51, 0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(5px); animation: fadeInOverlay 0.2s ease-out forwards; }
+        .popup-content { background: var(--card-background); padding: 24px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 90%; max-width: 380px; text-align: center; animation: slideDownFadeIn 0.25s ease-out forwards; overflow: hidden; }
+        #popup-title { font-size: 1.25em; font-weight: 600; color: var(--text-color); margin: 0 0 8px 0; }
+        #popup-message { font-size: 1em; color: var(--grey-text); line-height: 1.6; margin: 0 0 24px 0; }
+        #close-popup { width: 100%; height: 44px; }
+        .popup-timer { position: absolute; bottom: 0; left: 0; height: 4px; background-color: var(--primary-color); width: 100%; }
+        .popup-timer.active { animation: shrink 5s linear forwards; }
+        @keyframes fadeInOverlay { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideDownFadeIn { 
+            from { opacity: 0; transform: translateY(-20px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
+        @keyframes shrink { from { width: 100%; } to { width: 0%; } }
+    </style>
+</head>
+<body>
+    <div id="popup-overlay" class="popup-overlay" style="display: none;">
+        <div class="popup-content">
+            <h3 id="popup-title"></h3>
+            <p id="popup-message"></p>
+            <button id="close-popup">ตกลง</button>
+            <div id="popup-timer" class="popup-timer"></div>
+        </div>
+    </div>
+
+    <div class="login-card">
+        <form action="/login" method="POST">
+            <div class="form-group">
+                <input type="text" name="username" placeholder="Username" required>
+            </div>
+            <div class="form-group">
+                <div class="password-wrapper">
+                    <input type="password" name="password" id="password" placeholder="Password" required>
+                    <span class="toggle-password-icon" id="toggle-password">
+                        <svg class="eye-open" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
+                        <svg class="eye-closed" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="display: none;"><path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.243 4.243L6.228 6.228" /></svg>
+                    </span>
+                </div>
+            </div>
+            
+            <div class="form-options">
+                <a href="/register">Create an account</a>
+            </div>
+            
+            <button type="submit">Login</button>
+        </form>
+    </div>
+
+    <script>
+        // JavaScript สำหรับเปิด-ปิดตา
+        const togglePassword = document.getElementById('toggle-password');
+        const passwordInput = document.getElementById('password');
+        const eyeOpen = togglePassword.querySelector('.eye-open');
+        const eyeClosed = togglePassword.querySelector('.eye-closed');
+        togglePassword.addEventListener('click', function () {
+            const isPassword = passwordInput.type === 'password';
+            passwordInput.type = isPassword ? 'text' : 'password';
+            eyeOpen.style.display = isPassword ? 'none' : 'block';
+            eyeClosed.style.display = isPassword ? 'block' : 'none';
+        });
+
+        // JavaScript สำหรับแสดง Pop-up
+        document.addEventListener('DOMContentLoaded', () => {
+            const popupOverlay = document.getElementById('popup-overlay');
+            const popupTitle = document.getElementById('popup-title');
+            const popupMessage = document.getElementById('popup-message');
+            const popupTimer = document.getElementById('popup-timer');
+            const closePopup = document.getElementById('close-popup');
+            let popupTimeout;
+
+            function showPopup(title, message) {
+                clearTimeout(popupTimeout);
+                popupTitle.textContent = title;
+                popupMessage.textContent = message;
+                popupOverlay.style.display = 'flex';
+                popupTimer.classList.remove('active');
+                void popupTimer.offsetWidth;
+                popupTimer.classList.add('active');
+                popupTimeout = setTimeout(hidePopup, 5000);
+            }
+
+            function hidePopup() {
+                popupOverlay.style.display = 'none';
+                clearTimeout(popupTimeout);
+            }
+
+            const params = new URLSearchParams(window.location.search);
+            const error = params.get('error');
+            const success = params.get('success');
+
+            if (error) {
+                showPopup('เกิดข้อผิดพลาด', error);
+            } else if (success) {
+                showPopup('สำเร็จ', success);
+            }
+
+            closePopup.addEventListener('click', hidePopup);
+            popupOverlay.addEventListener('click', (e) => {
+                if (e.target === popupOverlay) {
+                    hidePopup();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

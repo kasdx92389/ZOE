@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Homepage</title>
+    <link rel="stylesheet" href="/homepage-style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="main-header">
+            <h1></h1>
+        </header>
+        <main class="card-container">
+            <a href="/admin/dashboard" class="card-link">
+                <div class="card">
+                    <h2>DASHBOARD</h2>
+                </div>
+            </a>
+            <a href="/admin/zoe-management" class="card-link">
+                <div class="card">
+                    <h2>MANAGEMENT</h2>
+                </div>
+            </a>
+            <a href="/admin/packages" class="card-link">
+                <div class="card">
+                    <h2>PACKAGES</h2>
+                </div>
+            </a>
+        </main>
+        <footer class="page-footer">
+            <a href="/logout">Logout</a>
+        </footer>
+    </div>
+
+  <!-- Floating Summary Button -->
+  <a href="/admin/summary" class="summary-fab" aria-label="Summary">
+    <img src="/icon.svg" alt="Summary" onerror="this.style.opacity=0; this.insertAdjacentText('afterend','S');" />
+  </a>
+</body>
+</html>

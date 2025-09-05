@@ -1,0 +1,247 @@
+/* Import Sarabun font */
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap');
+
+/* Define color and layout variables */
+:root {
+    --primary-color: #6a5af9;
+    --primary-light: #f3f4ff;
+    --border-color: #e0e0e0;
+    --background-color: #f8f7fc;
+    --card-background: #ffffff;
+    --text-color: #333333;
+    --grey-text: #8d99ae;
+    --danger-color: #ef4444;
+}
+
+/* Global styles */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Sarabun', sans-serif;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    margin: 0;
+    animation: fadeInPage 0.4s ease-out forwards;
+}
+
+/* --- Layout Containers --- */
+.container {
+    max-width: 700px;
+    margin: 20px auto; /* Adjusted: ลดระยะห่างบน-ล่าง */
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 40px); /* Adjusted: ปรับความสูงขั้นต่ำ */
+}
+
+.card {
+    background-color: var(--card-background);
+    border-radius: 16px;
+    padding: 24px 32px;
+    box-shadow: 0 8px 30px rgba(106, 90, 249, 0.08);
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+}
+
+.section {
+    margin-bottom: 16px; /* Adjusted: ลดระยะห่างระหว่าง Section */
+}
+.section:last-child {
+    margin-bottom: 0;
+}
+
+.section-title {
+    font-size: 1.1em;
+    font-weight: 700;
+    margin-bottom: 12px; /* Adjusted: ลดระยะห่าง */
+    padding-bottom: 8px;
+    border-bottom: none;
+}
+
+/* --- Form Styles --- */
+.item-form {
+    display: grid;
+    grid-template-columns: 2.8fr 2.8fr 0.8fr auto;
+    gap: 12px;
+    align-items: flex-end;
+}
+
+/* ===== NEW: Style for button in this specific form ===== */
+.item-form .btn.btn-icon {
+    width: 42px;
+    height: 42px;
+}
+/* ======================================================= */
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.form-group.quantity-group {
+    max-width: 90px;
+}
+
+/* --- Input, Select, Button Styles --- */
+label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 6px;
+    font-size: 0.9em;
+}
+
+input, select, button, textarea {
+    font-family: 'Sarabun', sans-serif;
+    font-size: 1em;
+    border-radius: 10px;
+    width: 100%;
+}
+
+input, select {
+    padding: 0 12px;
+    height: 42px;
+    border: 1px solid var(--border-color);
+    text-align: left;
+}
+
+input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(106, 90, 249, 0.1);
+}
+
+textarea {
+    height: 120px; /* Adjusted: กำหนดความสูงให้ลดลง */
+    min-height: 100px; /* Adjusted: ลดความสูงขั้นต่ำ */
+    padding: 12px;
+    resize: vertical;
+    margin-bottom: 12px;
+    flex-grow: 1;
+    border: 1px solid var(--border-color);
+}
+
+button {
+    font-weight: bold;
+    color: #fff;
+    background-color: var(--primary-color);
+    cursor: pointer;
+    height: 42px;
+    border: none;
+    border-radius: 12px;
+    transition: background-color 0.2s;
+}
+
+button:hover:not(:disabled) {
+    background-color: #5848d9;
+}
+
+button:disabled {
+    background-color: #e9ecef;
+    cursor: not-allowed;
+    color: #adb5bd;
+}
+
+/* --- Order List & Customer Info --- */
+#current-order-list .placeholder {
+    text-align: center;
+    color: var(--grey-text);
+    padding: 16px; /* Adjusted: ลด Padding */
+    background-color: transparent;
+    border-radius: 12px;
+    border: 2px dashed #e0e0e0;
+}
+
+.order-item {
+    background-color: var(--primary-light);
+    padding: 10px 16px;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 0.95em;
+}
+
+.order-item-details {
+    flex-grow: 1;
+}
+
+.remove-item-btn {
+    background-color: #ede9fe;
+    border: none;
+    color: var(--primary-color);
+    cursor: pointer;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: all 0.2s ease-in-out;
+}
+
+.remove-item-btn:hover {
+    background-color: #fee2e2;
+    color: var(--danger-color);
+}
+
+.customer-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.input-group.full-width {
+    grid-column: 1 / -1;
+}
+
+/* --- Summary Sections --- */
+.summary-section {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    flex-grow: 1;
+}
+
+.summary-box {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+}
+
+/* --- Utility --- */
+.hidden {
+    display: none;
+}
+select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236B7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.8' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-size: 1em 1em;
+    background-position: right 0.6rem center; 
+    padding-right: 2rem;
+}
+/* --- Page Load Animation --- */
+@keyframes fadeInPage {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+/* ===== START: Custom font size for summary buttons ===== */
+#copy-initial-btn,
+#copy-final-btn {
+    font-size: 0.9em; /* ปรับขนาดตัวอักษรได้ตามต้องการ */
+}

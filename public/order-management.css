@@ -1,0 +1,513 @@
+:root {
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --text: #0f172a;
+  --muted: #94a3b8;
+  --border: #e2e8f0;
+  --bg-subtle: #f1f5f9;
+  --accent: #4f46e5;
+  --accent-light: #eef2ff;
+  --radius: 12px;
+  --shadow: 0 1px 2px rgba(0,0,0,.05);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+
+  --status-pending-bg: #fefce8;
+  --status-pending-text: #a16207;
+  --status-success-bg: #f0fdf4;
+  --status-success-text: #166534;
+  --status-error-bg: #fef2f2;
+  --status-error-text: #991b1b;
+  --status-cancelled-bg: #f1f5f9;
+  --status-cancelled-text: #475569;
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Sarabun', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-size: 14px;
+}
+
+/* --- Main Layout & Structure --- */
+.wrap {
+  max-width: 1200px;
+  margin: 24px auto;
+  padding: 0 16px;
+}
+.stack {
+  display: grid;
+  gap: 24px;
+}
+.stack > .card:last-child {
+  max-width: 1024px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 24px 32px;
+}
+#order-form.stack {
+  gap: 24px;
+}
+.form-section {
+  display: grid;
+  gap: 12px;
+}
+
+/* --- General Components --- */
+.grid { display: grid; gap: 12px; }
+.g12 { grid-template-columns: repeat(12, 1fr); }
+.g3 { grid-template-columns: repeat(3, 1fr); }
+.g2 { grid-template-columns: 1fr 1fr; }
+.compact { gap: 12px; }
+.col-3 { grid-column: span 3; }
+.col-6 { grid-column: span 6; }
+.col-12 { grid-column: span 12; }
+@media (max-width: 640px) {
+  .col-3, .col-6 { grid-column: span 12; }
+  .g3, .g2 { grid-template-columns: 1fr; }
+}
+
+/* --- Headers & Titles --- */
+.brand { font-size: 20px; font-weight: 700; margin: 0; }
+.topbar, .form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* --- Forms & Inputs --- */
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field-label { font-size: 13px; color: var(--text); font-weight: 600; }
+
+/* ++ MODIFIED: Unified styles for all input-like elements ++ */
+.input, select, textarea, .stat {
+  box-sizing: border-box; /* Ensure consistent box model */
+  border: 1px solid var(--bg-subtle); /* Use subtle border instead of transparent */
+  background: var(--bg-subtle);
+  border-radius: 8px;
+  height: 40px;
+  padding: 0 12px;
+  outline: none;
+  font-size: 14px;
+  font-family: inherit;
+  transition: all .2s ease;
+}
+textarea { 
+  height: auto; 
+  padding: 8px 12px; 
+  min-height: 170px; /* Reduced min-height */
+}
+.input:hover, select:hover, textarea:hover, .stat:hover {
+  background-color: #e9eef5;
+  border-color: #e9eef5;
+}
+.input:focus, select:focus, textarea:focus {
+  background-color: #fff;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+/* --- Buttons --- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  color: #334155;
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 10px;
+  height: 40px;
+  padding: 0 16px;
+  transition: all .2s ease;
+  white-space: nowrap;
+}
+.btn:hover { background: #f8fafc; color: var(--text); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { background: #4338ca; color: #fff; }
+.btn.ghost { background: transparent; border: 1px solid transparent; }
+.btn.ghost:hover { background: var(--bg-subtle); }
+.btn.icon-btn { padding: 0; width: 40px; }
+
+#btn-add-item.icon-btn {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+}
+
+.actions { display: flex; gap: 8px; align-items: center; }
+.form-footer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-top: 16px;
+}
+
+/* --- Specific Rows & Components --- */
+.add-item-row {
+  display: grid;
+  grid-template-columns: 1fr 80px 120px 32px;
+  gap: 8px;
+  align-items: center;
+}
+.grid.g3.compact { align-items: flex-end; }
+
+.stat {
+  display: flex;
+  flex-direction: row; 
+  align-items: center; 
+  justify-content: space-between; 
+  gap: 8px;
+}
+.stat small {
+  font-size: 13px; 
+  font-weight: 600;
+  color: var(--muted);
+}
+.stat strong {
+  font-size: 16px; 
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* --- Tables --- */
+.table-wrap { overflow-x: hidden; border-radius: var(--radius); border: 1px solid var(--border); margin-top: 8px; }
+.table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.table th, .table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--bg-subtle);
+  text-align: left;
+  white-space: nowrap;
+}
+.table thead th {
+  background: #fdfdff;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  border-bottom: 1px solid var(--border);
+}
+.table tbody tr:last-child td { border-bottom: none; }
+.table tbody tr:hover { background-color: var(--accent-light); }
+.table .num { text-align: right; }
+.table .key-data { font-weight: 600; color: var(--text); }
+.table.sticky thead th { position: sticky; top: 0; z-index: 1; background-color: #fdfdff; }
+
+.table .btn-delete-item, .table .btn-delete-order {
+  background: transparent; border: none; cursor: pointer;
+  color: var(--muted); padding: 4px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  z-index: 2;
+}
+
+.table .btn-delete-item:hover, .table .btn-delete-order:hover {
+  background-color: #fee2e2; color: #b91c1c;
+}
+
+/* --- Status Badges --- */
+.status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 12px;
+}
+.status-badge.status-success { background-color: var(--status-success-bg); color: var(--status-success-text); }
+.status-badge.status-pending { background-color: var(--status-pending-bg); color: var(--status-pending-text); }
+.status-badge.status-error { background-color: var(--status-error-bg); color: var(--status-error-text); }
+.status-badge.status-cancelled { background-color: var(--status-cancelled-bg); color: var(--status-cancelled-text); }
+
+/* Table Interactivity */
+#orders-table tbody tr.interactive-row { cursor: pointer; }
+#orders-table tbody tr.interactive-row.selected {
+  background-color: var(--accent-light);
+  box-shadow: inset 3px 0 0 0 var(--accent);
+}
+
+/* --- Custom Dialog (Modal) --- */
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.5);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  opacity: 0;
+  transition: opacity .2s ease;
+}
+.dialog-overlay.visible {
+  display: flex;
+  opacity: 1;
+}
+.dialog-box {
+  background-color: var(--card);
+  padding: 24px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+}
+.dialog-title {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 700;
+}
+.dialog-message {
+  margin: 0 0 20px;
+  color: var(--muted);
+}
+.dialog-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+.dialog-buttons .btn {
+  flex-grow: 1;
+}
+
+.dialog-message .summary-details {
+  text-align: left;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.dialog-message .summary-details p {
+  margin: 4px 0;
+}
+
+.dialog-message .summary-details hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 12px 0;
+}
+
+.dialog-message .summary-items {
+  list-style-type: none;
+  padding-left: 10px;
+  margin: 8px 0;
+}
+
+.dialog-message .summary-items li {
+  margin-bottom: 4px;
+}
+
+.dialog-message .summary-totals {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 16px;
+  font-size: 16px;
+}
+
+.dialog-message .summary-totals strong {
+  font-weight: 700;
+  text-align: right;
+}
+#btn-new-order {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* ++ ADDED: Cross-browser alignment for filters ++ */
+.filter-wrapper > .input,
+.filter-wrapper > .btn {
+    box-sizing: border-box; /* Enforce consistent box model */
+    margin-top: 0; /* Remove any default browser margins */
+    margin-bottom: 0;
+}
+/* ++ REVISED: Improved styles for Items Table (v2) ++ */
+#items-table {
+  /* ลบ table-layout: fixed; ออกเพื่อให้ browser จัดคอลัมน์ได้เป็นธรรมชาติ */
+  width: 100%;
+  border-collapse: collapse;
+}
+
+/* จัดสไตล์เซลล์ทั่วไปในตารางนี้ */
+#items-table th,
+#items-table td {
+    padding: 10px 14px;
+    vertical-align: middle;
+}
+
+/* --- กำหนดสไตล์แยกตามคอลัมน์ (เวอร์ชันปรับปรุง) --- */
+
+/* คอลัมน์ที่ 1: แพ็กเกจ - กำหนดความกว้างเริ่มต้น แต่ยังยืดหยุ่นได้ */
+#items-table th:nth-child(1),
+#items-table td:nth-child(1) {
+  text-align: left;
+  width: 55%; /* กำหนดให้คอลัมน์นี้กว้างที่สุดเป็นหลัก */
+  white-space: normal;
+  font-weight: 600;
+}
+
+/* คอลัมน์ที่ 2: จำนวน */
+#items-table th:nth-child(2),
+#items-table td:nth-child(2) {
+  text-align: center;
+  width: 70px;
+}
+
+/* คอลัมน์ที่ 3 & 4: ราคา/หน่วย และ รวม - ลดความกว้างลงเล็กน้อย */
+#items-table th:nth-child(3),
+#items-table td:nth-child(3),
+#items-table th:nth-child(4),
+#items-table td:nth-child(4) {
+  text-align: right;
+  width: 115px; /* ลดความกว้างลงจากเดิม */
+}
+
+/* คอลัมน์ที่ 5: ปุ่มลบ */
+#items-table td:last-child {
+  text-align: right;
+  width: 60px;
+}
+/* จัดปุ่มลบในตารางออเดอร์ให้อยู่กึ่งกลาง (แก้ไข) */
+#orders-table td:last-child {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.table-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 16px;
+  font-size: 14px;
+  color: var(--muted);
+  margin-top: 1px;
+}
+
+.pagination-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.pagination-controls button {
+  min-width: 38px;
+  height: 38px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  background-color: var(--card);
+  color: var(--text);
+  cursor: pointer;
+  border-radius: 6px;
+  font-weight: 600;
+  transition: all .2s ease;
+}
+
+.pagination-controls button:hover {
+  background-color: var(--bg-subtle);
+  border-color: #d1d9e4;
+}
+
+.pagination-controls button.active {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.pagination-controls button:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  background-color: var(--bg);
+}
+/* ++ ปรับปรุงความกว้างคอลัมน์ตารางออเดอร์ ++ */
+#orders-table th:nth-child(1) { width: 15%; } /* เลขออเดอร์ */
+#orders-table th:nth-child(2) { width: 15%; } /* วันที่ */
+#orders-table th:nth-child(3) { width: 22%; } /* ลูกค้า */
+#orders-table th:nth-child(4) { width: 15%; } /* เกม */
+#orders-table th:nth-child(5) { width: 10%; } /* ยอดจ่าย */
+#orders-table th:nth-child(6) { width: 10%; text-align: center; } /* สถานะ */
+#orders-table th:nth-child(7) { width: 8%; }  /* ผู้ทำรายการ */
+#orders-table th:nth-child(8) { width: 5%; }  /* ปุ่มลบ */
+
+/* --- กรอบหลักของปฏิทิน --- */
+.litepicker {
+  font-family: 'Sarabun', system-ui, sans-serif; /* ใช้ฟอนต์เดียวกับเว็บ */
+  font-size: 14px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border);
+}
+
+/* --- หัวข้อเดือน (เช่น 'สิงหาคม 2025') --- */
+.litepicker .month-item-header {
+  padding: 8px 0;
+}
+.litepicker .month-item-header .month-item-name,
+.litepicker .month-item-header .month-item-year {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* --- ปุ่มลูกศรซ้าย-ขวา --- */
+.litepicker .button-previous-month,
+.litepicker .button-next-month {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  transition: background-color .2s ease;
+}
+.litepicker .button-previous-month:hover,
+.litepicker .button-next-month:hover {
+  background-color: var(--bg-subtle);
+}
+/* --- ตัวย่อวันในสัปดาห์ (อา, จ, อ...) --- */
+.litepicker .month-item-weekdays .weekday-item {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  width: 38px;
+  height: 38px;
+  line-height: 38px;
+}
+
+/* --- ตัวเลขวันที่แต่ละวัน --- */
+.litepicker .day-item {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  width: 38px;
+  height: 38px;
+  line-height: 38px;
+  border-radius: 10px; /* ทำให้ขอบมนขึ้น */
+  transition: all .2s ease;
+}
+
+/* --- สไตล์ตอนเอาเมาส์ชี้ และวันที่ถูกเลือก --- */
+.litepicker .day-item:hover {
+  background-color: var(--accent-light);
+  border-radius: 10px;
+}
+.litepicker .day-item.is-in-range {
+  background-color: var(--accent-light);
+  border-radius: 0; /* วันที่อยู่ระหว่างกลาง ไม่ต้องมีขอบมน */
+}
+.litepicker .day-item.is-start-date,
+.litepicker .day-item.is-end-date {
+  background-color: var(--accent);
+  color: #fff;
+}
+.litepicker .day-item.is-start-date {
+  border-radius: 10px 0 0 10px;
+}
+.litepicker .day-item.is-end-date {
+  border-radius: 0 10px 10px 0;
+}
+.litepicker .day-item.is-today {
+    color: var(--accent);
+    font-weight: 700;
+}

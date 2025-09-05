@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Order Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/order-management.css" />
+  
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/litepicker/dist/css/litepicker.css"/>
+
+  <style>
+      .form-header {
+        gap: 16px;
+      }
+      .topbar {
+        display: flex;
+        flex-wrap: nowrap;
+        align-items: center;
+        gap: 16px;
+      }
+      .topbar h1 {
+        margin: 0;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+      .filter-wrapper {
+        display: flex;
+        flex-grow: 1;
+        justify-content: flex-end;
+        gap: 8px; /* Reduced gap for tighter spacing */
+        align-items: center;
+      }
+      #date-range-picker {
+        /* นำไอคอนปฏิทินกลับมา แต่เปลี่ยนตำแหน่งไปไว้ด้านขวา */
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Cline x1='16' y1='2' x2='16' y2='6'%3E%3C/line%3E%3Cline x1='8' y1='2' x2='8' y2='6'%3E%3C/line%3E%3Cline x1='3' y1='10' x2='21' y2='10'%3E%3C/line%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        /* กำหนดตำแหน่งไอคอนไปทางขวา โดยเว้นระยะ 12px จากขอบ */
+        background-position: right 12px center;
+        /* เพิ่ม padding ด้านขวาเพื่อไม่ให้ตัวหนังสือทับไอคอน */
+        padding-right: 38px;
+        width: 220px;
+      }
+      #search-q {
+          min-width: 150px; /* Allow search to shrink */
+      }
+      #btn-export-csv {
+          white-space: nowrap; /* Prevent button text from wrapping */
+      }
+  </style>
+</head>
+<body>
+
+<div class="wrap">
+  <main class="stack">
+    <section class="card">
+      <header class="form-header">
+        <h1 id="form-title" class="brand">สร้าง/แก้ไขออเดอร์</h1>
+      </header>
+      <form id="order-form" class="stack" data-mode="new">
+        <input type="hidden" id="editing-order-id" />
+
+        <div class="form-section">
+          <div class="grid g12">
+            <div class="field col-6">
+              <label for="game-select" class="field-label">เกม</label>
+              <select id="game-select" class="input"></select>
+            </div>
+            <div class="field col-6">
+              <label for="platform" class="field-label">แพลตฟอร์ม</label>
+              <select id="platform" class="input"></select>
+            </div>
+          </div>
+          <div class="add-item-row">
+            <select id="add-item-package" class="input" disabled></select>
+            <input type="number" min="1" value="1" id="add-item-qty" class="input" placeholder="จำนวน" />
+            <input type="number" min="0" step="0.01" id="add-item-unit" class="input" placeholder="ราคา/หน่วย" />
+            <button id="btn-add-item" type="button" class="btn primary icon-btn" title="เพิ่มรายการ">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </button>
+          </div>
+          <div class="table-wrap">
+            <table id="items-table" class="table">
+              <thead><tr><th>แพ็กเกจ</th><th>จำนวน</th><th class="num">ราคา/หน่วย</th><th class="num">รวม</th><th></th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+        
+        <div class="form-section">
+          <div class="grid g3">
+            <div class="field">
+              <label for="customer-name" class="field-label">ชื่อลูกค้า</label>
+              <input type="text" id="customer-name" class="input" />
+            </div>
+            <div class="field">
+              <label for="operator" class="field-label">ผู้ทำรายการ</label>
+              <select id="operator" class="input">
+                  <option>แทน</option>
+                  <option>เกรซ</option>
+                  <option>แอดมิน B</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="order-date" class="field-label">วันที่ทำรายการ</label>
+                <input type="datetime-local" id="order-date" class="input" step="1" />
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <div class="grid g3 compact">
+            <div class="field">
+              <label for="total-paid" class="field-label">ยอดจ่าย (รวม)</label>
+              <input type="number" min="0" step="0.01" id="total-paid" class="input" />
+            </div>
+            <div class="field">
+              <label for="cost" class="field-label">ต้นทุน (รวม)</label>
+              <input type="number" min="0" step="0.01" id="cost" class="input" />
+            </div>
+            <div class="stat"><small>กำไร</small><strong id="profit">0.00</strong></div>
+          </div>
+          <div class="grid g2">
+            <div class="field">
+              <label for="payment-proof" class="field-label">หลักฐานโอนเงิน (URL)</label>
+              <input type="url" id="payment-proof" class="input" placeholder="กรอกลิงก์ที่ได้จากโปรแกรม" />
+            </div>
+            <div class="field">
+              <label for="sales-proof" class="field-label">หลักฐานปิดการขาย (URL)</label>
+              <input type="url" id="sales-proof" class="input" placeholder="กรอกลิงก์ที่ได้จากโปรแกรม" />
+            </div>
+          </div>
+          <div class="grid g12">
+             <div class="field col-6">
+               <label for="topup-channel" class="field-label">ช่องทางการเติม</label>
+               <select id="topup-channel" class="input"></select>
+             </div>
+             <div class="field col-6">
+               <label for="status" class="field-label">สถานะ</label>
+               <select id="status" class="input"></select>
+             </div>
+          </div>
+          <div class="field">
+            <label for="note" class="field-label">หมายเหตุ</label>
+            <textarea id="note" rows="4" class="input"></textarea>
+          </div>
+        </div>
+
+        <footer class="form-footer">
+          <button id="btn-save" class="btn primary">บันทึกออเดอร์</button>
+          <span id="save-result" class="muted"></span>
+        </footer>
+      </form>
+    </section>
+
+    <section class="card">
+      <header class="topbar">
+        <h1>รายการออเดอร์</h1>
+        <div class="filter-wrapper">
+            <input type="text" id="date-range-picker" class="input" placeholder="— เลือกช่วงวันที่ —"/>
+            
+            <input type="date" id="filter-start-date" class="input" title="Start Date" style="display: none;">
+            <input type="date" id="filter-end-date" class="input" title="End Date" style="display: none;">
+
+            <input type="search" id="search-q" class="input" placeholder="เลขออเดอร์, ชื่อลูกค้า..." />
+            <select id="filter-status" class="input" style="max-width: 140px;"></select>
+            <select id="filter-platform" class="input" style="max-width: 140px;"></select>
+
+            <button id="btn-export-csv" class="btn">
+               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Export CSV</span>
+            </button>
+        </div>
+      </header>
+      
+      <div class="table-wrap">
+        <table id="orders-table" class="table sticky">
+          <thead><tr>
+            <th>เลขอออเดอร์</th><th>วันที่</th><th>ลูกค้า</th><th>เกม</th>
+            <th class="num">ยอดจ่าย</th><th>สถานะ</th><th>ผู้ทำรายการ</th>
+            <th></th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <footer class="table-footer">
+        <div id="pagination-summary" class="pagination-summary"></div>
+        <div id="pagination-controls" class="pagination-controls"></div>
+      </footer>
+      
+    </section>
+  </main>
+</div>
+
+<div id="custom-dialog-overlay" class="dialog-overlay">
+  <div id="custom-dialog-box" class="dialog-box">
+    <h3 id="dialog-title" class="dialog-title">ยืนยันการกระทำ</h3>
+    <p id="dialog-message" class="dialog-message">คุณแน่ใจหรือไม่?</p>
+    <div id="dialog-buttons" class="dialog-buttons"></div>
+  </div>
+</div>
+
+<script src="/order-management.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/litepicker/dist/litepicker.js"></script>
+</body>
+</html>

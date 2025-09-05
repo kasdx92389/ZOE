@@ -1,0 +1,130 @@
+/* Styles specific to package-management.html */
+.container {
+    width: 100%;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 30px;
+    animation: fadeInPage 0.5s ease-out forwards;
+}
+
+.sticky-header {
+    position: sticky;
+    top: 0;
+    background-color: var(--background-color);
+    padding: 12px 0;
+    z-index: 100;
+    transition: box-shadow 0.2s ease-in-out;
+    margin-bottom: 12px;
+}
+.sticky-header.scrolled {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    min-height: 36px;
+}
+
+.header-left, .header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.select-all-group {
+    display: flex;
+    align-items: center;
+}
+.select-all-group label {
+    font-weight: 600;
+    color: var(--text-body);
+    margin-left: 8px;
+    user-select: none;
+    cursor: pointer;
+}
+
+.bulk-actions-content {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.bulk-actions-content.hidden {
+    opacity: 0;
+    transform: translateY(-10px);
+    pointer-events: none;
+    height: 0;
+    overflow: hidden;
+    padding: 0;
+    margin: 0;
+}
+
+
+#edit-actions-left {
+    display: flex;
+    gap: 8px;
+}
+
+.bulk-actions-content .selection-count { font-weight: 600; color: var(--text-body); }
+.bulk-actions-content .bulk-buttons { display: flex; gap: 10px; }
+
+#package-grid {
+    padding-top: 12px;
+    display: grid; 
+    grid-template-columns: repeat(auto-fill, 290px);
+    justify-content: center; 
+    align-items: start; 
+    align-content: start;
+    gap: 20px;
+}
+
+.package-card {
+    background-color: var(--card-background); border-radius: 12px; border: 1px solid var(--border-color);
+    padding: 16px; transition: all 0.2s ease;
+    display: flex; flex-direction: column; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    position: relative;
+    min-height: 150px;
+}
+.package-card.draggable { cursor: grab; }
+.package-card.selected-card {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--primary-light);
+    transform: translateY(-2px);
+}
+.card-checkbox { position: absolute; top: 12px; left: 12px; width: 20px; height: 20px; accent-color: var(--primary-color); }
+.pkg-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; cursor: pointer; padding-left: 28px; }
+.pkg-name { font-weight: 600; font-size: 1rem; color: var(--text-heading); word-break: break-word; flex-grow: 1; }
+.pkg-price { font-weight: 700; font-size: 1.1rem; color: var(--primary-color); white-space: nowrap; }
+.pkg-code { font-size: 0.8rem; color: var(--text-light); margin-top: 4px; margin-bottom: 12px; cursor: pointer; padding-left: 28px; }
+.pkg-footer { margin-top: auto; display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid var(--border-color); }
+.pkg-info { display: flex; gap: 8px; align-items: center; }
+.info-tag { font-size: 0.8rem; font-weight: 600; padding: 4px 10px; border-radius: 16px; background-color: #f3f4f6; color: var(--text-light); }
+
+.status-toggle {
+    font-weight: 600; background-color: transparent; border: none; cursor: pointer;
+    padding: 5px; border-radius: 6px; transition: opacity 0.2s ease;
+}
+.status-toggle:hover { opacity: 0.7; }
+.status-toggle.active { color: var(--success-color); }
+.status-toggle.inactive { color: var(--danger-color); }
+
+.individual-edit-container { max-height: 280px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; padding: 8px; background-color: var(--background-color); }
+.individual-edit-grid { display: grid; grid-template-columns: 1fr 80px 80px; align-items: center; gap: 5px; padding: 2px 4px; margin-bottom: 2px; }
+.individual-edit-grid .grid-header { font-weight: 600; color: var(--text-light); font-size: 0.8rem; text-transform: uppercase; padding-bottom: 8px; }
+.individual-edit-grid input { height: 38px; border-radius: 5px; border: 1px solid var(--border-color); padding: 0px 12px; }
+.modal-divider { border: 0; height: 1px; background-color: var(--border-color); margin: 24px 0; }
+.individual-edit-grid input[type="number"] { text-align: right; }
+
+.order-item { padding: 12px 16px; background-color: white; border: 1px solid var(--border-color); border-radius: 6px; cursor: grab; user-select: none; font-weight: 500; font-size: 1rem; margin-bottom: 8px; }
+.sortable-ghost { background: var(--primary-light); opacity: 0.6; }
+
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+input[type=number] {
+    -moz-appearance: textfield;
+}

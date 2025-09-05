@@ -1,0 +1,122 @@
+:root {
+    --primary-color: #6366F1;
+    --primary-light: #eef2ff;
+    --border-color: #e5e7eb;
+    --background-color: #f9fafb;
+    --card-background: #ffffff;
+    --text-heading: #1f2937;
+    --text-body: #374151;
+    --text-light: #6b7280;
+}
+
+/* --- Page Load Animation --- */
+@keyframes fadeInPage {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+
+/* Basic Styles */
+*, *::before, *::after { box-sizing: border-box; }
+body {
+    font-family: 'Sarabun', sans-serif;
+    background-color: var(--background-color);
+    color: var(--text-body);
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    animation: fadeInPage 0.4s ease-out forwards;
+    overflow: hidden;
+}
+.container {
+    width: 100%;
+    max-width: 900px;
+    padding: 30px;
+    text-align: center;
+}
+
+/* Header */
+.main-header {
+    margin-bottom: 40px;
+}
+.main-header h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--text-heading);
+    margin: 0;
+}
+
+/* Card Links */
+.card-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 24px;
+    align-items: stretch; /* ++ ทำให้ทุก Card สูงเท่ากัน ++ */
+}
+.card-link {
+    text-decoration: none;
+    display: flex; /* ++ ทำให้ Card ยืดเต็มความสูงของ Grid cell ++ */
+}
+.card {
+    background-color: var(--card-background);
+    border-radius: 16px;
+    padding: 40px 32px;
+    text-align: center;
+    transition: all 0.2s ease;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    width: 100%; /* ++ ทำให้ Card ยืดเต็มความกว้างของ a tag ++ */
+    display: flex; /* ++ จัดกลางอีกชั้นสำหรับ h2 ++ */
+    justify-content: center;
+    align-items: center;
+}
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+    border-color: var(--primary-color);
+}
+.card h2 {
+    font-size: 1.5rem;
+    color: var(--text-heading);
+    margin: 0;
+    white-space: nowrap; /* ++ ไม่ให้ข้อความขึ้นบรรทัดใหม่ ++ */
+}
+
+/* Footer Link */
+.page-footer {
+    margin-top: 60px;
+    font-size: 1rem;
+}
+.page-footer a {
+    color: var(--text-light);
+    text-decoration: none;
+    transition: color 0.2s ease;
+    font-weight: 500;
+}
+.page-footer a:hover {
+    color: var(--primary-color);
+    text-decoration: underline;
+}
+
+@media (max-width: 600px) {
+    .container {
+        max-width: 100%;
+    }
+    .card-container {
+        grid-template-columns: 1fr;
+    }
+}
+/* Floating Summary Button */
+.summary-fab{position:fixed;right:24px;bottom:24px;width:56px;height:56px;border-radius:50%;background:#fff;border:1px solid #e5e7eb;box-shadow:0 8px 20px rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .15s ease,box-shadow .15s ease;z-index:1000}
+.summary-fab:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(0,0,0,.12)}
+.summary-fab img{width:26px;height:26px;display:block}
+@media (max-width:640px){.summary-fab{right:16px;bottom:16px;width:52px;height:52px}.summary-fab img{width:24px;height:24px}}

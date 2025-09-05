@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="/shared-styles.css">
+    <link rel="stylesheet" href="/admin-style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <main class="card">
+
+            <div class="section">
+                <form id="add-item-form" class="item-form">
+                    <div class="form-group">
+                        <label for="game-selector">เลือกเกม</label>
+                        <select id="game-selector" required>
+                            <option value="">-- เลือกเกม --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="package-selector">แพ็กเกจ</label>
+                        <select id="package-selector" required disabled>
+                            <option value="">-- เลือกเกมก่อน --</option>
+                        </select>
+                    </div>
+                    <div class="form-group quantity-group">
+                        <label for="item-quantity">จำนวน</label>
+                        <input type="number" id="item-quantity" value="1" min="1" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-icon" title="Add Item">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                    </button>
+                </form>
+            </div>
+
+            <div class="section">
+                <h3 class="section-title">รายการปัจจุบัน</h3>
+                <div id="current-order-list">
+                    <p class="placeholder">ยังไม่มีรายการในออเดอร์</p>
+                </div>
+            </div>
+
+            <div class="section summary-section">
+                <div class="summary-box">
+                    <h3 class="section-title">สรุปสำหรับแจ้งยอดลูกค้า</h3>
+                    <textarea id="initial-summary" readonly placeholder="สรุปยอดจะแสดงที่นี่..."></textarea>
+                    <button id="copy-initial-btn" class="btn btn-primary" disabled>คัดลอกแจ้งยอด</button>
+                </div>
+            </div>
+
+            <div class="section hidden" id="customer-info-section">
+                <h3 class="section-title">ข้อมูลลูกค้า</h3>
+                <div class="input-group full-width" style="margin-bottom: 12px;">
+                    <label for="game-display">เกม</label>
+                    <input type="text" id="game-display" readonly>
+                </div>
+                <div id="customer-info-container">
+                    <div class="customer-info-grid hidden" id="uid-fields">
+                        <div class="input-group">
+                            <label for="uid-input">UID</label>
+                            <input type="text" id="uid-input" placeholder="กรอก UID ของลูกค้า">
+                        </div>
+                        <div class="input-group">
+                            <label for="server-input">Server (ถ้ามี)</label>
+                            <input type="text" id="server-input" placeholder="กรอกเซิร์ฟเวอร์">
+                        </div>
+                    </div>
+                    <div class="customer-info-grid hidden" id="id-pass-fields">
+                        <div class="input-group">
+                            <label for="id-email-input">ID/Email</label>
+                            <input type="text" id="id-email-input" placeholder="กรอกไอดีหรืออีเมล">
+                        </div>
+                        <div class="input-group">
+                            <label for="password-input">Password</label>
+                            <input type="text" id="password-input" placeholder="กรอกพาสเวิร์ด">
+                        </div>
+                        <div class="input-group">
+                            <label for="in-game-name-input">In-game Name</label>
+                            <input type="text" id="in-game-name-input" placeholder="กรอกชื่อในเกม">
+                        </div>
+                        <div class="input-group">
+                            <label for="login-method-input">ช่องทางล็อกอิน</label>
+                            <input type="text" id="login-method-input" placeholder="กรอกช่องทางล็อกอิน">
+                        </div>
+                    </div>
+                    <div class="customer-info-grid hidden" id="riot-fields">
+                        <div class="input-group full-width">
+                            <label for="riot-input">RIOT ID</label>
+                            <input type="text" id="riot-input" placeholder="RiotName#TAG">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="section summary-section">
+                <div class="summary-box">
+                    <h3 class="section-title">สรุปสำหรับส่งทีมงาน</h3>
+                    <textarea id="final-summary" readonly placeholder="ข้อมูลสำหรับทีมงานจะแสดงที่นี่..."></textarea>
+                    <button id="copy-final-btn" class="btn btn-primary" disabled>คัดลอกส่งทีมงาน</button>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="/script.js"></script>
+</body>
+</html>

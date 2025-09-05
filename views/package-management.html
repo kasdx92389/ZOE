@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Package Management</title>
+    <link rel="stylesheet" href="/package-style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+</head>
+<body>
+
+    <div id="package-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title"></h2>
+                <button class="close-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="package-form">
+                    <input type="hidden" id="package-id">
+                    <input type="hidden" id="original-package-id">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="name">Package Name</label>
+                            <input type="text" id="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="price">Price</label>
+                            <input type="number" id="price" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="product_code">CODE (ถ้ามี)</label>
+                            <input type="text" id="product_code">
+                        </div>
+                        <div class="form-group">
+                            <label for="type">Type</label>
+                            <select id="type" required>
+                                <option value="UID">UID</option>
+                                <option value="ID-PASS">ID-PASS</option>
+                                <option value="RIOT#">RIOT#</option>
+                                <option value="OPEN/ID">OPEN/ID</option>
+                                <option value="CODE">CODE</option>
+                                <option value="QRCODE">QRCODE</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="channel">Channel</label>
+                             <select id="channel" required>
+                                <option value="RAZERGOLD">RAZERGOLD</option>
+                                <option value="YOUTRIP">YOUTRIP</option>
+                                <option value="RICHMAN">RICHMAN</option>
+                                <option value="24BUYM">24BUYM</option>
+                                <option value="WEPAY">WEPAY</option>
+                                <option value="ITUNES">ITUNES</option>
+                                <option value="RAZERSILVER">RAZERSILVER</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="game_association">Game</label>
+                            <input type="text" id="game_association" required placeholder="เช่น VALORANT">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-subtle close-btn">Cancel</button>
+                <button type="submit" form="package-form" class="btn btn-primary">Save Package</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="bulk-price-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Bulk Price Adjustment</h2>
+                <button class="close-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-subtitle">Enter the new price for each selected package.</p>
+                <div id="bulk-price-list" class="bulk-price-list"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-subtle close-btn">Cancel</button>
+                <button id="save-bulk-price-changes-btn" class="btn btn-primary">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="bulk-status-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Change Status</h2>
+                <button class="close-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-subtitle">เลือกสถานะใหม่ที่ต้องการกำหนดให้กับทุกรายการที่เลือก</p>
+                <div class="bulk-status-buttons">
+                    <button id="set-active-btn" class="btn btn-success">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
+                        Set to Active
+                    </button>
+                    <button id="set-inactive-btn" class="btn btn-danger">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M1.293 1.293a1 1 0 0 1 1.414 0L8 6.586l5.293-5.293a1 1 0 1 1 1.414 1.414L9.414 8l5.293 5.293a1 1 0 0 1-1.414 1.414L8 9.414l-5.293 5.293a1 1 0 0 1-1.414-1.414L6.586 8 1.293 2.707a1 1 0 0 1 0-1.414z"/></svg>
+                        Set to Inactive
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="order-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Re-Arrange</h2>
+                <button class="close-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="order-list-container" class="order-list-container">
+                    </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-subtle close-btn">Cancel</button>
+                <button id="save-order-btn" class="btn btn-primary">Save Order</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="confirmation-modal" class="modal-overlay hidden modal-confirm">
+        <div class="modal-content">
+             <div class="modal-header">
+                <h3 id="confirm-title">Are you sure?</h3>
+                <button class="close-btn">
+                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="icon">
+                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+                </div>
+                <p id="confirm-message">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button id="cancel-action-btn" class="btn btn-subtle">Cancel</button>
+                <button id="confirm-action-btn" class="btn btn-danger">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <header class="page-header">
+            <div class="filter-group">
+                <select id="game-filter">
+                    <option value=""> — เลือกเกม — </option>
+                </select>
+                <input type="search" id="filter-input" placeholder="Search packages...">
+            </div>
+            <div class="action-group">
+                <button id="reorder-all-btn" class="btn btn-subtle">Arrange</button>
+                <button id="add-new-btn" class="btn btn-primary">
+                    <span>Add New</span>
+                </button>
+            </div>
+        </header>
+        <main class="card">
+            <div id="bulk-actions-bar" class="bulk-actions-bar hidden">
+                <div class="bulk-actions-info">
+                    <span id="selection-count"></span>
+                    <button id="deselect-all-btn" class="deselect-btn" title="Deselect All">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8z"/></svg>
+                    </button>
+                </div>
+                <div class="bulk-actions-buttons">
+                    <button id="bulk-price-btn" class="btn">Edit Prices</button>
+                    <button id="bulk-status-btn" class="btn">Change Status</button>
+                    <button id="bulk-delete-btn" class="btn btn-danger">Delete</button>
+                </div>
+            </div>
+            <div class="table-container">
+                <table class="package-table">
+                    <thead>
+                        <tr>
+                            <th class="checkbox-cell"><input type="checkbox" id="select-all-checkbox"></th>
+                            <th>Package</th>
+                            <th>Price</th>
+                            <th>Type</th>
+                            <th>Game</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="package-table-body">
+                        </tbody>
+                </table>
+            </div>
+            <footer class="card-footer">
+                <div id="pagination-summary"></div>
+                <div id="pagination-controls"></div>
+            </footer>
+        </main>
+    </div>
+    
+    <div id="toast-notification" class="toast"></div>
+    
+    <script src="/package-management.js" defer></script>
+</body>
+</html>
