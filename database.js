@@ -6,7 +6,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 // --- NEW: Define a specific connection string for local development ---
 // ใส่รหัสผ่านที่คุณตั้งไว้ในขั้นตอนติดตั้ง PostgreSQL ตรง [YOUR-PASSWORD]
-const localConnectionString = `postgres://postgres:72rmcBtnuKJ2pVg@localhost:5432/postgres`;
+const localConnectionString = `postgres://postgres:72rmcBtnuKJ2pVg@127.0.0.1:5432/postgres`;
 
 const dbConfig = {
   // ถ้าอยู่บน Hosting ให้ใช้ URL และ Token จาก Environment Variables
