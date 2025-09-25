@@ -17,15 +17,24 @@ app.set('trust proxy', 1);
 const MASTER_CODE = 'KESU-SECRET-2025';
 const saltRounds = 10;
 
-// --- build session conString forcing 5432 (เสถียรกว่า) ---
+// --- build session conString forcing 5432 (เสถียรกว่า) + sslmode=require ---
 function buildSessionConString() {
   const raw =
     (process.env.DATABASE_URL_POOLER && process.env.DATABASE_URL_POOLER.trim()) ||
     (process.env.DATABASE_URL && process.env.DATABASE_URL.trim());
   if (!raw) return undefined;
-  if (/:6543\//.test(raw)) return raw.replace(':6543/', ':5432/');
-  if (/:\d+\//.test(raw)) return raw.replace(/:\d+\//, ':5432/');
-  return raw.replace(/(supabase\.co|pooler\.supabase\.com)(\/|$)/, '$1:5432$2');
+
+  // บังคับพอร์ต 5432
+  let url = raw;
+  if (/:6543\//.test(url)) url = url.replace(':6543/', ':5432/');
+  else if (/:\d+\//.test(url)) url = url.replace(/:\d+\//, ':5432/');
+  else url = url.replace(/(supabase\.co|pooler\.supabase\.com)(\/|$)/, '$1:5432$2');
+
+  // เติม sslmode=require ถ้ายังไม่มี
+  if (!/[?&]sslmode=/.test(url)) {
+    url += (url.includes('?') ? '&' : '?') + 'sslmode=require';
+  }
+  return url;
 }
 const SESSION_CONSTRING = buildSessionConString();
 
@@ -56,11 +65,22 @@ async function loadUsers() {
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// session ก่อนทุก route
+// session ก่อนทุก route  (อัปเดต: ใช้ conObject + SSL บังคับ)
 const PgSession = PgSessionFactory(session);
 app.use(session({
   store: new PgSession({
-    ...(SESSION_CONSTRING ? { conString: SESSION_CONSTRING } : { pool: pgPool }),
+    ...(SESSION_CONSTRING
+      ? {
+          // ใช้ conObject เพื่อส่ง ssl เข้าไลบรารี pg โดยตรง (กัน ECONNREFUSED / ETIMEDOUT)
+          conObject: {
+            connectionString: SESSION_CONSTRING,
+            ssl: { require: true, rejectUnauthorized: false },
+          },
+        }
+      : {
+          // fallback: ใช้ proxy pool เดิม (เปิด SSL อยู่แล้ว)
+          pool: pgPool,
+        }),
     tableName: 'user_sessions',
     createTableIfMissing: true,
     pruneSessionInterval: 3600,
