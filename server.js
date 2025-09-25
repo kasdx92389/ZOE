@@ -182,32 +182,48 @@ app.post('/login', async (req, res) => {
   res.redirect(`/?error=${encodeURIComponent('Username หรือ Password ไม่ถูกต้อง')}`);
 });
 
+// ----- REPLACE your current POST /register handler with this block -----
 app.post('/register', async (req, res) => {
-  const { username, password, secret } = req.body;
-  const start = Date.now();
+  const started = Date.now();
   try {
-    if (secret !== process.env.ADMIN_REG_SECRET) {
-      return res.status(401).json({ ok:false, error:'INVALID_SECRET' });
+    // รับจาก form หรือ JSON ได้ทั้งคู่
+    const username = (req.body?.username || '').trim();
+    const password = req.body?.password || '';
+    const secret = req.body?.secret || '';
+
+    if (!process.env.ADMIN_REGISTER_SECRET) {
+      console.error('REGISTER_MISCONFIG: ADMIN_REGISTER_SECRET not set');
+      return res.status(500).json({ ok: false, error: 'SERVER_ERROR' });
+    }
+    if (secret !== process.env.ADMIN_REGISTER_SECRET) {
+      return res.status(403).json({ ok: false, error: 'INVALID_SECRET' });
     }
     if (!username || !password) {
-      return res.status(400).json({ ok:false, error:'MISSING_FIELDS' });
+      return res.status(400).json({ ok: false, error: 'MISSING_FIELDS' });
     }
 
-    // กันเครือข่ายช้า: เวลา query ใส่ statement_timeout (ถ้าตั้งที่ pool ได้อยู่แล้วข้ามได้)
+    // แฮชรหัสผ่าน
     const hash = await bcrypt.hash(password, 10);
-    await db.query(`insert into public.users (username, password_hash)
-                    values ($1,$2)
-                    on conflict (username) do update set password_hash = excluded.password_hash`,
-                    [username, hash]);
 
-    return res.status(201).json({ ok:true });
+    // ใช้ PG_POOL แทน db
+    const sql = `
+      insert into public.users (username, password_hash)
+      values ($1, $2)
+      on conflict (username) do update
+      set password_hash = excluded.password_hash
+      returning username
+    `;
+    const { rows } = await PG_POOL.query(sql, [username, hash]);
+    const user = rows?.[0]?.username;
+
+    // สร้างเซสชันทันทีถ้าต้องการ (ไม่บังคับ)
+    req.session.user = { username: user };
+    req.session.save(() => {});
+
+    return res.json({ ok: true, user });
   } catch (err) {
-    console.error('REGISTER_ERROR', { ms: Date.now()-start, err });
-    // ตอบกลับแทนการค้าง
-    if ((err.code||'').includes('ETIMEDOUT')) {
-      return res.status(503).json({ ok:false, error:'DB_TIMEOUT' });
-    }
-    return res.status(500).json({ ok:false, error:'SERVER_ERROR' });
+    console.error('REGISTER_ERROR', { ms: Date.now() - started, err });
+    return res.status(500).json({ ok: false, error: 'SERVER_ERROR' });
   }
 });
 
