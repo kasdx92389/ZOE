@@ -1,3 +1,4 @@
+
 // --- Imports (ES Modules) ---
 import express from 'express';
 import path from 'path';
@@ -53,7 +54,7 @@ app.set('trust proxy', 1);
 const MASTER_CODE = 'KESU-SECRET-2025';
 const saltRounds = 10;
 
-// --- Database wrapper (เดิมของคุณ แต่ให้วิ่งผ่าน q() ที่มี retry) ---
+// --- Database wrapper (ให้วิ่งผ่าน q() ที่มี retry) ---
 const db = {
   prepare: (sql) => {
     let paramIndex = 1;
@@ -89,7 +90,19 @@ const db = {
   },
 };
 
-/** --- DB readiness & helper backoff (ใช้จาก database.js) --- */
+// --- โหลดข้อมูลผู้ใช้ ---
+let users = {};
+const loadUsers = async () => {
+  const userRows = await db
+    .prepare('SELECT username, password_hash FROM users')
+    .all();
+  users = userRows.reduce((acc, user) => {
+    acc[user.username] = user.password_hash;
+    return acc;
+  }, {});
+  console.log('Users loaded from database.');
+};
+
 async function loadUsersWithRetry(max = 5) {
   let tries = 0,
     delay = 500;
@@ -109,20 +122,6 @@ async function loadUsersWithRetry(max = 5) {
     }
   }
 }
-
-// --- โหลดข้อมูลผู้ใช้ ---
-let users = {};
-const loadUsers = async () => {
-  const userRows = await db
-    .prepare('SELECT username, password_hash FROM users')
-    .all();
-  users = userRows.reduce((acc, user) => {
-    acc[user.username] = user.password_hash;
-    return acc;
-  }, {});
-  console.log('Users loaded from database.');
-};
-// initial loadUsers จะถูกเรียกหลัง DB พร้อม (ดูส่วน boot ท้ายไฟล์)
 
 // --- Middleware ---
 app.use(express.urlencoded({ extended: true }));
@@ -148,7 +147,7 @@ app.use(
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- Routes (ของเดิม) ---
+// --- Auth helper ---
 const requireLogin = (req, res, next) => {
   if (req.session.userId) {
     next();
@@ -157,6 +156,7 @@ const requireLogin = (req, res, next) => {
   }
 };
 
+// --- Routes (เดิม) ---
 app.get('/', (req, res) => {
   if (req.session.userId) {
     res.redirect('/admin/home');
@@ -201,9 +201,7 @@ app.post('/register', async (req, res) => {
     .prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)')
     .run(username, hashedPassword);
 
-  // เติมให้: รีเฟรชแคช users หลังสมัครสำเร็จ
   await loadUsersWithRetry(3);
-
   res.redirect(`/?success=${encodeURIComponent('สร้างบัญชีสำเร็จ!')}`);
 });
 
@@ -236,195 +234,10 @@ app.get('/admin/zoe-management', requireLogin, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'order-management.html'));
 });
 
-// --- ช่วยให้ API ต้อง login ก่อน
+// --- ต้องล็อกอินก่อนสำหรับ /api/*
 app.use('/api', requireLogin);
 
-// --- General Data API ---
-app.get('/api/dashboard-data', async (req, res) => {
-  try {
-    const { game } = req.query;
-    let orderedGames = [];
-
-    const config = await db
-      .prepare("SELECT value FROM app_config WHERE key = 'game_order'")
-      .get();
-    if (config && config.value) {
-      orderedGames = JSON.parse(config.value);
-    }
-
-    const allDbGames = (
-      await db.prepare('SELECT DISTINCT game_association FROM packages').all()
-    ).map((g) => g.game_association);
-
-    const cleanedOrderedGames = orderedGames.filter((g) =>
-      allDbGames.includes(g)
-    );
-    const newGames = allDbGames.filter((g) => !orderedGames.includes(g));
-    const finalCorrectOrder = [...cleanedOrderedGames, ...newGames];
-
-    if (JSON.stringify(finalCorrectOrder) !== JSON.stringify(orderedGames)) {
-      console.log('Game order has changed. Updating app_config.');
-      const value = JSON.stringify(finalCorrectOrder);
-      await db
-        .prepare(
-          "INSERT INTO app_config (key, value) VALUES ('game_order', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
-        )
-        .run(value);
-      orderedGames = finalCorrectOrder;
-    }
-
-    let sortedGames = orderedGames;
-    const activeGames = (
-      await db
-        .prepare(
-          'SELECT DISTINCT game_association FROM packages WHERE is_active = 1'
-        )
-        .all()
-    ).map((g) => g.game_association);
-    const finalSortedActiveGames = sortedGames.filter((g) =>
-      activeGames.includes(g)
-    );
-
-    let query = 'SELECT * FROM packages';
-    const params = [];
-    if (game) {
-      query += ' WHERE game_association = ?';
-      params.push(game);
-    }
-    query += ' ORDER BY sort_order ASC, name ASC';
-    const packages = await db.prepare(query).all(...params);
-    res.json({ packages, games: finalSortedActiveGames });
-  } catch (error) {
-    console.error('Error fetching dashboard data:', error);
-    res.status(500).json({ error: 'Failed to retrieve dashboard data' });
-  }
-});
-
-// --- Game Order API ---
-app.get('/api/games/order', async (_req, res) => {
-  try {
-    let orderedGames = [];
-    const config = await db
-      .prepare("SELECT value FROM app_config WHERE key = 'game_order'")
-      .get();
-    if (config && config.value) {
-      orderedGames = JSON.parse(config.value);
-    }
-    res.json(orderedGames);
-  } catch (error) {
-    console.error('Error fetching game order:', error);
-    res.status(500).json({ error: 'Failed to retrieve game order' });
-  }
-});
-
-app.post('/api/games/order', async (req, res) => {
-  try {
-    const { gameOrder } = req.body;
-    if (!Array.isArray(gameOrder)) {
-      return res.status(400).json({ error: 'Invalid data format.' });
-    }
-    const value = JSON.stringify(gameOrder);
-    await db
-      .prepare(
-        "INSERT INTO app_config (key, value) VALUES ('game_order', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
-      )
-      .run(value);
-    res.json({ ok: true });
-  } catch (error) {
-    console.error('Error saving game order:', error);
-    res.status(500).json({ error: 'Failed to save game order' });
-  }
-});
-
-// --- Packages CRUD ---
-app.post('/api/packages', async (req, res) => {
-  try {
-    const { name, price, product_code, type, channel, game_association } =
-      req.body;
-    const result = await db
-      .prepare(
-        'INSERT INTO packages (name, price, product_code, type, channel, game_association) VALUES (?, ?, ?, ?, ?, ?) RETURNING id'
-      )
-      .get(name, price, product_code, type, channel, game_association);
-    res.status(201).json({ id: result.id, message: 'Package created' });
-  } catch (error) {
-    console.error('Error creating package:', error);
-    res.status(500).json({ error: 'Failed to create package' });
-  }
-});
-
-app.put('/api/packages/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const {
-      name,
-      price,
-      product_code,
-      type,
-      channel,
-      game_association,
-      is_active,
-    } = req.body;
-    const result = await db
-      .prepare(
-        'UPDATE packages SET name = ?, price = ?, product_code = ?, type = ?, channel = ?, game_association = ?, is_active = ? WHERE id = ?'
-      )
-      .run(
-        name,
-        price,
-        product_code,
-        type,
-        channel,
-        game_association,
-        is_active,
-        id
-      );
-    if (result.rowCount === 0)
-      return res.status(404).json({ error: 'Package not found' });
-    res.json({ id, message: 'Package updated' });
-  } catch (error) {
-    console.error(`Error updating package ${req.params.id}:`, error);
-    res.status(500).json({ error: 'Failed to update package' });
-  }
-});
-
-app.delete('/api/packages/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const result = await db
-      .prepare('DELETE FROM packages WHERE id = ?')
-      .run(id);
-    if (result.rowCount === 0)
-      return res.status(404).json({ error: 'Package not found' });
-    res.status(200).json({ message: 'Package deleted' });
-  } catch (error) {
-    console.error(`Error deleting package ${req.params.id}:`, error);
-    res.status(500).json({ error: 'Failed to delete package' });
-  }
-});
-
-app.post('/api/packages/order', async (req, res) => {
-  const { order } = req.body;
-  if (!Array.isArray(order))
-    return res.status(400).json({ error: 'Invalid order data' });
-
-  try {
-    await db.transaction(async (client) => {
-      for (const [index, id] of order.entries()) {
-        await client.query(
-          'UPDATE packages SET sort_order = $1 WHERE id = $2',
-          [index, id]
-        );
-      }
-    });
-    res.json({ ok: true, message: 'Package order updated' });
-  } catch (error) {
-    console.error('Error updating package order:', error);
-    res.status(500).json({ error: 'Failed to update package order' });
-  }
-});
-
-// --- Orders API ---
+// --- Helpers สำหรับ Orders & Summary ---
 function buildOrdersQuery(queryParams) {
   const {
     q: keyword = '',
@@ -476,7 +289,6 @@ app.get('/api/orders', async (req, res) => {
   try {
     const { dataSql, countSql, params } = buildOrdersQuery(req.query);
 
-    // ใช้ q() แทน pool.query โดยตรง (มี retry)
     const countParamsLen = (countSql.match(/\$/g) || []).length;
     const totalResult = await q(countSql, params.slice(0, countParamsLen));
     const ordersResult = await q(dataSql, params);
@@ -750,19 +562,7 @@ app.get('/api/orders/export/csv', async (req, res) => {
   }
 });
 
-/** Health check for Render */
-app.get('/healthz', async (_req, res) => {
-  try {
-    await q('SELECT 1');
-    res.status(200).send('ok');
-  } catch {
-    res.status(503).send('db-unhealthy');
-  }
-});
-
-/* ========================================================
- * Summary Page & API (ของเดิม + ใช้ q() เพื่อความทน)
- * ====================================================== */
+/** Summary */
 app.get('/admin/summary', requireLogin, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin-summary.html'));
 });
@@ -874,20 +674,33 @@ app.get('/api/summary', async (req, res) => {
   }
 });
 
+/** Health check for Render
+ *  หมายเหตุ: ตอบ 200 เสมอเพื่อกัน Render รีสตาร์ตลูปขณะ DB ไม่พร้อม
+ *  ใส่สถานะ db ลงข้อความเพื่อ debug เอง
+ */
+app.get('/healthz', async (_req, res) => {
+  let db = 'down';
+  try {
+    await q('SELECT 1');
+    db = 'up';
+  } catch {}
+  res.status(200).json({ ok: true, db });
+});
+
 // --- Server Start ---
+// เปิดพอร์ตก่อน เพื่อให้ Render เห็นว่า service ขึ้นแล้ว
+// แล้วรอ DB ใน background; ระหว่างนั้น API ที่โดนยิงจะ retry เอง และถ้าไม่ไหวจะตอบ 500
+app.listen(PORT, () => {
+  console.log(`Server is running at http://localhost:${PORT}`);
+});
+
+// รอ DB พร้อมใน background
 (async () => {
   try {
-    await waitForDbReady(); // รอ DB พร้อมก่อน
+    await waitForDbReady({ attempts: 10, firstDelayMs: 800 });
     await loadUsersWithRetry();
-    app.listen(PORT, () =>
-      console.log(`Server is running at http://localhost:${PORT}`)
-    );
   } catch (e) {
-    console.error(
-      'Fatal: service cannot start because DB is unavailable:',
-      e?.message
-    );
-    process.exit(1);
+    console.error('DB still unavailable after retries (service stays up):', e?.message);
   }
 })();
 
