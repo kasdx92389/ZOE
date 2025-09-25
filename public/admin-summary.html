@@ -11,10 +11,6 @@
     <link rel="stylesheet" href="/admin-summary.css">
 </head>
 <body>
-    <div id="loading-overlay" class="loading-overlay">
-        <div class="spinner"></div>
-    </div>
-
     <div class="wrap">
         <div class="stack">
             <header class="summary-header">
@@ -43,74 +39,42 @@
                     <div class="kpi-icon"><i class="fas fa-shopping-cart"></i></div>
                     <div class="kpi-info">
                         <span class="kpi-label">จำนวนออเดอร์</span>
-                        <div class="kpi-main">
-                            <span class="kpi-value" id="kpiOrders">-</span>
-                            <span class="kpi-change" id="kpiOrdersChange"></span>
-                        </div>
+                        <span class="kpi-value" id="kpiOrders">-</span>
                     </div>
                 </div>
                 <div class="kpi-card">
                     <div class="kpi-icon"><i class="fas fa-hand-holding-usd"></i></div>
                     <div class="kpi-info">
                         <span class="kpi-label">รายได้รวม</span>
-                         <div class="kpi-main">
-                            <span class="kpi-value" id="kpiRevenue">-</span>
-                            <span class="kpi-change" id="kpiRevenueChange"></span>
-                        </div>
+                        <span class="kpi-value" id="kpiRevenue">-</span>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon"><i class="fas fa-dollar-sign"></i></div>
+                    <div class="kpi-info">
+                        <span class="kpi-label">ต้นทุนรวม</span>
+                        <span class="kpi-value" id="kpiCost">-</span>
                     </div>
                 </div>
                 <div class="kpi-card">
                     <div class="kpi-icon"><i class="fas fa-money-bill-wave"></i></div>
                     <div class="kpi-info">
                         <span class="kpi-label">กำไรสุทธิ</span>
-                         <div class="kpi-main">
-                            <span class="kpi-value" id="kpiProfit">-</span>
-                            <span class="kpi-change" id="kpiProfitChange"></span>
-                        </div>
+                        <span class="kpi-value" id="kpiProfit">-</span>
                     </div>
                 </div>
                 <div class="kpi-card">
                     <div class="kpi-icon"><i class="fas fa-percent"></i></div>
                     <div class="kpi-info">
                         <span class="kpi-label">อัตรากำไร</span>
-                         <div class="kpi-main">
-                            <span class="kpi-value" id="kpiProfitMargin">-</span>
-                            <span class="kpi-change" id="kpiProfitMarginChange"></span>
-                        </div>
-                    </div>
-                </div>
-                <div class="kpi-card">
-                    <div class="kpi-icon"><i class="fas fa-receipt"></i></div>
-                    <div class="kpi-info">
-                        <span class="kpi-label">ยอดสั่งซื้อเฉลี่ย (AOV)</span>
-                         <div class="kpi-main">
-                            <span class="kpi-value" id="kpiAov">-</span>
-                            <span class="kpi-change" id="kpiAovChange"></span>
-                        </div>
-                    </div>
-                </div>
-                 <div class="kpi-card">
-                    <div class="kpi-icon"><i class="fas fa-dollar-sign"></i></div>
-                    <div class="kpi-info">
-                        <span class="kpi-label">ต้นทุนรวม</span>
-                        <div class="kpi-main">
-                           <span class="kpi-value" id="kpiCost">-</span>
-                           <span class="kpi-change" id="kpiCostChange"></span>
-                       </div>
+                        <span class="kpi-value" id="kpiProfitMargin">-</span>
                     </div>
                 </div>
             </section>
 
             <section class="charts-grid">
                 <div class="card">
-                    <div class="chart-header">
-                        <h3 class="chart-title"><i class="fas fa-calendar-alt"></i> สรุปรายวัน</h3>
-                        <div class="chart-options" id="daily-chart-options">
-                            <button class="btn-sm active" data-group="day">วัน</button>
-                            <button class="btn-sm" data-group="week">สัปดาห์</button>
-                            <button class="btn-sm" data-group="month">เดือน</button>
-                        </div>
-                    </div>
+                    <h3 class="chart-title"><i class="fas fa-calendar-alt"></i> สรุปรายวัน</h3>
                     <div class="chart-container">
                         <canvas id="dailyChart"></canvas>
                     </div>
@@ -138,7 +102,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <script src="/admin-summary.js"></script>
 </body>
 </html>
