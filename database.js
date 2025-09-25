@@ -12,7 +12,14 @@ const dbConfig = {
   // ถ้าอยู่บน Hosting ให้ใช้ URL และ Token จาก Environment Variables
   // ถ้าอยู่บนเครื่องเรา (Development) ให้เชื่อมต่อกับฐานข้อมูล postgres ที่เพิ่งติดตั้ง
   connectionString: isProduction ? process.env.DATABASE_URL : localConnectionString,
-  ssl: isProduction ? { rejectUnauthorized: false } : false
+  ssl: isProduction ? { rejectUnauthorized: false } : false,
+
+  // --- ADDED THIS SECTION TO FIX ETIMEDOUT ---
+  // เพิ่มระยะเวลารอการเชื่อมต่อและการตอบกลับจากฐานข้อมูล
+  // เพื่อแก้ปัญหาฐานข้อมูล "หลับ" บน Free Tier
+  connectionTimeoutMillis: 15000, // รอการเชื่อมต่อ 15 วินาที
+  query_timeout: 30000 // รอคำสั่ง Query ตอบกลับ 30 วินาที
+  // ------------------------------------------
 };
 
 const pool = new Pool(dbConfig);
