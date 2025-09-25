@@ -152,6 +152,9 @@ app.use(session({
 // static files
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ลด 404 favicon กวน log
+app.get('/favicon.ico', (_req, res) => res.status(204).end());
+
 // ===== Health Endpoints ======================================================
 app.get('/healthz', (_req, res) => res.status(200).send('ok'));
 app.get('/readiness', async (_req, res) => {
@@ -436,7 +439,7 @@ app.post('/api/orders', async (req, res) => {
 
     const orderNumber = genOrderNumber();
     const totalPaid = Number(b.total_paid || 0);
-    ance: Number(b.cost || 0);
+    const cost = Number(b.cost || 0);       // <-- FIXED
     const profit = totalPaid - cost;
     const packagesText = b.items?.map(it => `${it.package_name} x${it.quantity}`).join(', ') || '';
     const packageCount = b.items?.reduce((a,c)=>a+Number(c.quantity||0),0) || 0;
