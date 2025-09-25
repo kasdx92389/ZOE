@@ -39,19 +39,37 @@ const db = {
 
 // --- โหลดข้อมูลผู้ใช้ ---
 let users = {};
-const loadUsers = async () => {
-    try {
-        const userRows = await db.prepare('SELECT username, password_hash FROM users').all();
-        users = userRows.reduce((acc, user) => {
-            acc[user.username] = user.password_hash;
-            return acc;
-        }, {});
-        console.log('Users loaded from database.');
-    } catch (error) {
-        console.error('Failed to load users from database:', error);
+
+// Helper function for creating a delay
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+const loadUsers = async (retries = 5, initialDelay = 2000) => {
+    // Loop to try connecting multiple times
+    for (let i = 1; i <= retries; i++) {
+        try {
+            // Try to fetch users from the database
+            const userRows = await db.prepare('SELECT username, password_hash FROM users').all();
+            users = userRows.reduce((acc, user) => {
+                acc[user.username] = user.password_hash;
+                return acc;
+            }, {});
+            console.log('✅ Users loaded from database successfully.');
+            return; // If successful, exit the function
+        } catch (error) {
+            console.warn(`(Attempt ${i}/${retries}) Failed to load users. Retrying in ${initialDelay / 1000} seconds...`);
+            
+            // If this is the last attempt, show a final error message
+            if (i === retries) {
+                console.error('❌ Failed to load users from database after all retries.', error);
+            }
+            
+            // Wait before trying again
+            await delay(initialDelay);
+        }
     }
 };
 loadUsers();
+
 
 // --- Middleware ---
 app.use(express.urlencoded({ extended: true }));
@@ -540,6 +558,21 @@ app.get('/api/orders/export/csv', async (req, res) => {
 
 
 // --- Server Start ---
+// --- NEW: Database Connection Check on Startup ---
+(async () => {
+    try {
+        const client = await pgPool.connect();
+        console.log('✅ Database connection successful.');
+        client.release();
+    } catch (error) {
+        console.error('❌ Could not connect to the database!');
+        console.error('Error details:', error.message);
+        console.error('This might be because your Supabase database is paused. Please check your Supabase dashboard.');
+    }
+})();
+// --- END: New Code ---
+
+
 app.listen(PORT, () => console.log(`Server is running at http://localhost:${PORT}`));
 /* ========================================================
  * Summary Page & API (Appended - non-breaking)
