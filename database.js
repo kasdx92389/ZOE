@@ -28,4 +28,4 @@ const pool = new Pool(dbConfig);
 
 console.log(isProduction ? "Connecting to external database (Supabase)..." : "Connecting to local PostgreSQL database...");
 
-export default pool; // <--- เปลี่ยนจาก module.exports
+export default pool;
