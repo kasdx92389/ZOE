@@ -9,6 +9,29 @@ const bcrypt = require('bcrypt');
 const pgPool = require('./database.js');          // proxy Pool กันตาย
 const PgSessionFactory = require('connect-pg-simple');
 
+// === NEW: Redis (optional, ใช้ REDIS_URL) ===
+let RedisStore, redisClient;
+const canUseRedis = !!process.env.REDIS_URL;
+if (canUseRedis) {
+  try {
+    RedisStore = require('connect-redis').default;
+    const { createClient } = require('redis');
+    redisClient = createClient({
+      url: process.env.REDIS_URL,
+      socket: {
+        keepAlive: true,
+        reconnectStrategy: (retries) => Math.min(3000, 200 + retries * 250),
+      },
+    });
+    redisClient.on('error', (err) => console.warn('⚠️  Redis error:', err.code || err.message));
+    redisClient.on('ready', () => console.log('✅ Redis ready (session store)'));
+    // ไม่ block start — ถ้า connect ไม่ได้จะ fallback ด้านล่าง
+    redisClient.connect().catch(e => console.warn('⚠️  Redis connect failed:', e.message));
+  } catch (e) {
+    console.warn('⚠️  Redis modules not available, will fallback to PG session.', e.message);
+  }
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 app.set('trust proxy', 1);
@@ -91,18 +114,31 @@ async function loadUsers() {
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(express.json({ limit: '1mb' }));
 
-// session (ใช้ PgSession + conObject)
+// ===== Session store (Redis -> fallback PG) ==================================
 const PgSession = PgSessionFactory(session);
+let sessionStore;
 
-app.use(session({
-  store: new PgSession({
+if (canUseRedis && RedisStore && redisClient) {
+  sessionStore = new RedisStore({
+    client: redisClient,
+    prefix: 'sess:',
+    ttl: 60 * 60 * 24 * 30, // 30 วัน
+  });
+  console.log('🧠 Session store: Redis');
+} else {
+  sessionStore = new PgSession({
     // ใช้ pool เดียวกับแอป → ได้ fallback/candidate เดียวกัน
     pool: pgPool,
     tableName: 'user_sessions',
     createTableIfMissing: true,
     pruneSessionInterval: 3600,
     disableTouch: true,
-  }),
+  });
+  console.log('🧠 Session store: Postgres (fallback)');
+}
+
+app.use(session({
+  store: sessionStore,
   secret: 'a-very-secret-key-for-your-session-12345',
   resave: false,
   saveUninitialized: false,
@@ -639,6 +675,7 @@ process.on('uncaughtException', (err) => {
 async function shutdown(signal) {
   console.log(`\n${signal} received, shutting down gracefully...`);
   try { await pgPool.end?.(); } catch {}
+  try { await redisClient?.quit?.(); } catch {}
   process.exit(0);
 }
 process.on('SIGTERM', () => shutdown('SIGTERM'));
