@@ -6,63 +6,65 @@ const express = require('express');
 const path = require('path');
 const session = require('express-session');
 const bcrypt = require('bcrypt');
-const pgPool = require('./database.js');                  // proxy Pool กันตาย
+const pgPool = require('./database.js');          // proxy Pool กันตาย
 const PgSessionFactory = require('connect-pg-simple');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 app.set('trust proxy', 1);
 
-// --- constants ---
+// ===== Config / Constants =====================================================
 const MASTER_CODE = 'KESU-SECRET-2025';
 const saltRounds = 10;
 
-// --- build session conString forcing 5432 (เสถียรกว่า) + sslmode=require ---
-// (คงไว้ตามไฟล์เดิม แม้ไม่ได้ใช้ เพื่อไม่กระทบส่วนอื่น)
-function buildSessionConString() {
-  const raw =
+// Request ID + simple timing logger
+app.use((req, res, next) => {
+  const rid = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  req.id = rid;
+  const t0 = process.hrtime.bigint();
+  res.setHeader('X-Request-Id', rid);
+  res.on('finish', () => {
+    const ms = Number((process.hrtime.bigint() - t0) / 1000000n);
+    const msg = `${new Date().toISOString()} reqId=${rid} ${req.method} ${req.originalUrl} ${res.statusCode} ${ms}ms`;
+    if (res.statusCode >= 500) console.error(msg);
+    else if (res.statusCode >= 400) console.warn(msg);
+    else console.log(msg);
+  });
+  next();
+});
+
+// ===== Session connection builder ============================================
+// เลือก DATABASE_URL (ตรง :5432) ก่อน แล้วค่อย fallback ไป DATABASE_URL_POOLER
+function pickRawDbUrl() {
+  return (
+    (process.env.DATABASE_URL && process.env.DATABASE_URL.trim()) ||
     (process.env.DATABASE_URL_POOLER && process.env.DATABASE_URL_POOLER.trim()) ||
-    (process.env.DATABASE_URL && process.env.DATABASE_URL.trim());
-  if (!raw) return undefined;
-
-  // บังคับพอร์ต 5432
-  let url = raw;
-  if (/:6543\//.test(url)) url = url.replace(':6543/', ':5432/');
-  else if (/:\d+\//.test(url)) url = url.replace(/:\d+\//, ':5432/');
-  else url = url.replace(/(supabase\.co|pooler\.supabase\.com)(\/|$)/, '$1:5432$2');
-
-  // เติม sslmode=require ถ้ายังไม่มี
-  if (!/[?&]sslmode=/.test(url)) {
-    url += (url.includes('?') ? '&' : '?') + 'sslmode=require';
-  }
-  return url;
+    ''
+  );
 }
-const SESSION_CONSTRING = buildSessionConString(); // เดิม (ไม่ใช้แล้วใน session store ใหม่นี้)
 
-/* --------- เพิ่มฟังก์ชันใหม่: สร้าง conObject แบบแยก field และ SSL non-verify --------- */
+// สร้าง conObject แบบแยกฟิลด์ + บังคับ 5432 + SSL non-verify สำหรับ session store
 function buildSessionConObject() {
-  const raw =
-    (process.env.DATABASE_URL_POOLER && process.env.DATABASE_URL_POOLER.trim()) ||
-    (process.env.DATABASE_URL && process.env.DATABASE_URL.trim());
+  const raw = pickRawDbUrl();
   if (!raw) return undefined;
+
   const u = new URL(raw);
   const database = decodeURIComponent(u.pathname.replace(/^\//, ''));
   return {
-    host: u.hostname,
-    port: 5432, // บังคับพอร์ต 5432 ให้เสถียร
+    host: u.hostname,                     // ถ้าเป็น db-xxxxx.supabase.co จะวิ่ง direct
+    port: 5432,                           // บังคับพอร์ต 5432 เสถียรสุด
     user: decodeURIComponent(u.username),
     password: decodeURIComponent(u.password),
     database,
-    ssl: { rejectUnauthorized: false }, // สำคัญ: กัน self-signed cert
+    ssl: { rejectUnauthorized: false },   // สำคัญ: กัน self-signed chain
     statement_timeout: 20_000,
     query_timeout: 15_000,
     connectionTimeoutMillis: 10_000,
   };
 }
 const SESSION_CONOBJECT = buildSessionConObject();
-/* ------------------------------------------------------------------------- */
 
-// --- db helper (แปลง ? → $1) ---
+// ===== DB helper (แปลง ? -> $1) =============================================
 const db = {
   prepare: (sql) => {
     let i = 1;
@@ -77,7 +79,7 @@ const db = {
   transaction: (fn) => fn,
 };
 
-// --- state & bootstrap helpers ---
+// ===== Bootstrap state =======================================================
 let users = {};
 async function loadUsers() {
   const rows = await db.prepare('SELECT username, password_hash FROM users').all();
@@ -85,46 +87,12 @@ async function loadUsers() {
   console.log(`👥 Users loaded: ${rows.length}`);
 }
 
-// --- middlewares ---
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
+// ===== Middlewares ===========================================================
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+app.use(express.json({ limit: '1mb' }));
 
-/* =========================
- *  session ก่อนทุก route
- *  (อัปเดตเฉพาะส่วนนี้: ใช้ conObject แบบแยก field + SSL non-verify)
- * ========================= */
-// ... (ส่วนบนไฟล์เดิมทั้งหมดคงเดิม) ...
+// session (ใช้ PgSession + conObject)
 const PgSession = PgSessionFactory(session);
-
-// ✅ ใช้ DATABASE_URL ก่อน (Direct 5432) แล้วค่อย fallback ไป POOLER
-function pickRawDbUrl() {
-  return (
-    (process.env.DATABASE_URL && process.env.DATABASE_URL.trim()) ||
-    (process.env.DATABASE_URL_POOLER && process.env.DATABASE_URL_POOLER.trim()) ||
-    ''
-  );
-}
-
-// สร้าง conObject แบบแยก field + บังคับ 5432 + SSL non-verify
-function buildSessionConObject() {
-  const raw = pickRawDbUrl();
-  if (!raw) return undefined;
-  const u = new URL(raw);
-  const database = decodeURIComponent(u.pathname.replace(/^\//, ''));
-  return {
-    host: u.hostname,            // ถ้าเป็น db-xxxx.supabase.co จะวิ่ง direct
-    port: 5432,                  // บังคับพอร์ต 5432 เสมอ
-    user: decodeURIComponent(u.username),
-    password: decodeURIComponent(u.password),
-    database,
-    ssl: { rejectUnauthorized: false },   // กัน self-signed
-    statement_timeout: 20_000,
-    query_timeout: 15_000,
-    connectionTimeoutMillis: 10_000,
-  };
-}
-const SESSION_CONOBJECT = buildSessionConObject();
-
 app.use(session({
   store: new PgSession({
     ...(SESSION_CONOBJECT ? { conObject: SESSION_CONOBJECT } : { pool: pgPool }),
@@ -143,20 +111,19 @@ app.use(session({
   },
 }));
 
-// static
+// static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// healths
+// ===== Health Endpoints ======================================================
 app.get('/healthz', (_req, res) => res.status(200).send('ok'));
 app.get('/readiness', async (_req, res) => {
   try { await pgPool.query('select 1'); res.status(200).send('ready'); }
   catch { res.status(503).send('db not ready'); }
 });
 
-// auth
+// ===== Auth helpers/routes ===================================================
 const requireLogin = (req, res, next) => (req.session?.userId ? next() : res.redirect('/'));
 
-// routes (เหมือนเดิม)
 app.get('/', (req, res) => {
   if (req.session?.userId) res.redirect('/admin/home');
   else res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -205,18 +172,15 @@ app.get('/admin/summary', requireLogin, (_req, res) =>
   res.sendFile(path.join(__dirname, 'public', 'admin-summary.html'))
 );
 
-// guard /api
+// Guard /api
 app.use('/api', requireLogin);
 
-/* =========================
- * ===== Utils สำหรับวันที่ (ใช้ COALESCE) =====
- * ========================= */
+// ===== Query helpers (timezone/filters) =====================================
 const DATE_EXPR = "((COALESCE(order_date, created_at))::timestamptz AT TIME ZONE 'Asia/Bangkok')::date";
 const DATE_EXPR_JOIN = DATE_EXPR
   .replace(/order_date/g, 'o.order_date')
   .replace(/created_at/g, 'o.created_at');
 
-// ===== Build Orders Query (แก้ให้ fallback created_at) =====
 function buildOrdersQuery(queryParams) {
   const { q = '', status = '', platform = '', startDate, endDate, page = 1, limit = 20 } = queryParams;
 
@@ -245,7 +209,8 @@ function buildOrdersQuery(queryParams) {
   return { dataSql, countSql, params };
 }
 
-// ===== Dashboard & Games Order (เหมือนเดิม) =====
+// ===== APIs (เหมือนเดิม) ====================================================
+// Dashboard & game list
 app.get('/api/dashboard-data', async (req, res) => {
   try {
     const { game } = req.query;
@@ -307,7 +272,7 @@ app.post('/api/games/order', async (req, res) => {
   }
 });
 
-// ===== Packages =====
+// Packages
 app.post('/api/packages', async (req, res) => {
   try {
     const { name, price, product_code, type, channel, game_association } = req.body;
@@ -340,7 +305,7 @@ app.delete('/api/packages/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const r = await db.prepare('DELETE FROM packages WHERE id = ?').run(id);
-  if (r.rowCount === 0) return res.status(404).json({ error: 'Package not found' });
+    if (r.rowCount === 0) return res.status(404).json({ error: 'Package not found' });
     res.status(200).json({ message: 'Package deleted' });
   } catch (e) {
     console.error(`Error deleting package ${req.params.id}:`, e);
@@ -396,7 +361,7 @@ app.post('/api/packages/bulk-actions', async (req, res) => {
   } finally { c.release(); }
 });
 
-// ===== Orders (ใช้ COALESCE สำหรับกรอง/จัดเรียง) =====
+// Orders
 app.get('/api/orders', async (req, res) => {
   try {
     const { dataSql, countSql, params } = buildOrdersQuery(req.query);
@@ -433,7 +398,7 @@ app.post('/api/orders', async (req, res) => {
 
     const orderNumber = genOrderNumber();
     const totalPaid = Number(b.total_paid || 0);
-    const cost = Number(b.cost || 0);
+    ance: Number(b.cost || 0);
     const profit = totalPaid - cost;
     const packagesText = b.items?.map(it => `${it.package_name} x${it.quantity}`).join(', ') || '';
     const packageCount = b.items?.reduce((a,c)=>a+Number(c.quantity||0),0) || 0;
@@ -535,7 +500,7 @@ app.delete('/api/orders/:orderNumber', async (req, res) => {
   }
 });
 
-// ===== Export CSV (fallback วันที่) =====
+// Export CSV
 app.get('/api/orders/export/csv', async (req, res) => {
   try {
     const queryParams = { ...req.query, limit: null };
@@ -580,7 +545,7 @@ app.get('/api/orders/export/csv', async (req, res) => {
   }
 });
 
-// ===== Summary (ใช้ COALESCE สำหรับช่วงวันที่) =====
+// Summary
 function _buildSummaryWhere(startDate, endDate) {
   let whereSql = ' WHERE 1=1';
   const params = [];
@@ -654,9 +619,35 @@ app.get('/api/summary', async (req, res) => {
   }
 });
 
-// ---- start server ทันที แล้ว hydrate users แบบ background ----
+// ===== Global error handler & shutdown ======================================
+app.use((err, req, res, _next) => {
+  const rid = req?.id || '-';
+  console.error(`reqId=${rid} Unhandled route error:`, err && (err.stack || err.message || err));
+  if (res.headersSent) return;
+  res.status(500).json({ error: 'Internal server error' });
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('⚠️  UnhandledRejection:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('⚠️  UncaughtException:', err);
+});
+
+async function shutdown(signal) {
+  console.log(`\n${signal} received, shutting down gracefully...`);
+  try { await pgPool.end?.(); } catch {}
+  process.exit(0);
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT',  () => shutdown('SIGINT'));
+
+// ===== Start server & hydrate users =========================================
 app.listen(PORT, () => console.log(`🟢 Server running on :${PORT}`));
 (async function hydrate() {
   try { await loadUsers(); }
-  catch (e) { console.warn('loadUsers failed, retrying soon:', e.code || e.message); setTimeout(hydrate, 5000); }
+  catch (e) {
+    console.warn('loadUsers failed, retry in 5s:', e.code || e.message);
+    setTimeout(hydrate, 5000);
+  }
 })();
