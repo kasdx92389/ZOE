@@ -4,7 +4,7 @@ const { parse } = require('pg-connection-string');
 
 const isProd = process.env.NODE_ENV === 'production';
 
-// ใช้ URL จาก ENV: ให้ POOLER มาก่อน (6543) แล้วค่อย Direct (5432)
+// ใช้ POOLER ก่อน (ถ้ามี) แล้วค่อย DIRECT
 const envConn =
   (process.env.DATABASE_URL_POOLER && process.env.DATABASE_URL_POOLER.trim()) ||
   (process.env.DATABASE_URL && process.env.DATABASE_URL.trim()) || '';
@@ -19,7 +19,7 @@ if (!connStr) {
 
 const parsed = parse(connStr);
 
-// ถ้าเป็น Supabase (pooler หรือ db) ให้บังคับใช้พอร์ต 6543 สำหรับงานหลัก
+// ถ้าเป็น Supabase ให้ยิงที่ 6543 สำหรับงานหลัก
 const looksSupabase =
   /supabase\.co$/i.test(parsed.host || '') || /pooler\.supabase\.com$/i.test(parsed.host || '');
 
@@ -28,7 +28,6 @@ if (isProd && looksSupabase) port = 6543;
 
 const ssl = isProd ? { require: true, rejectUnauthorized: false } : false;
 
-// === Pool สำหรับ Query หลักของแอป ===
 const pool = new Pool({
   user: parsed.user,
   password: parsed.password,
