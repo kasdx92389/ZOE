@@ -1,13 +1,12 @@
 // database.js
-const { Pool } = require('pg');
+const { Pool, Client } = require('pg');
 const { parse } = require('pg-connection-string');
 
 const isProduction = process.env.NODE_ENV === 'production';
 
 const envConn =
-  process.env.DATABASE_URL_POOLER?.trim() ||
-  process.env.DATABASE_URL?.trim() || '';
-
+  (process.env.DATABASE_URL_POOLER && process.env.DATABASE_URL_POOLER.trim()) ||
+  (process.env.DATABASE_URL && process.env.DATABASE_URL.trim()) || '';
 const localConn = `postgres://postgres:72rmcBtnuKJ2pVg@localhost:5432/postgres`;
 const connectionString = isProduction ? envConn : localConn;
 
@@ -18,47 +17,71 @@ if (!connectionString) {
 
 const parsed = parse(connectionString);
 
-const looksLikeSupabase =
-  /supabase\.co$/.test(parsed.host || '') || /pooler\.supabase\.com$/.test(parsed.host || '');
-const hasPgBouncerParam = /\bpgbouncer=true\b/i.test(connectionString);
-
-let port = parsed.port ? Number(parsed.port) : 5432;
-if (looksLikeSupabase && (hasPgBouncerParam || /pooler\.supabase\.com$/.test(parsed.host || ''))) {
-  // ใช้ 6543 เมื่อเป็น pooler
-  port = 6543;
+function buildCandidates(p) {
+  const host = p.host;
+  const base = {
+    user: p.user,
+    password: p.password,
+    host,
+    database: p.database,
+    ssl: isProduction ? { require: true, rejectUnauthorized: false } : false,
+    keepAlive: true,
+    statement_timeout: 20_000,
+    query_timeout: 15_000,
+    connectionTimeoutMillis: 15_000,
+  };
+  const looksPoolerHost = /pooler\.supabase\.com$/.test(host) || /supabase\.co$/.test(host);
+  const givenPort = p.port ? Number(p.port) : 5432;
+  const primary = { ...base, port: looksPoolerHost ? 6543 : givenPort };
+  const secondary = { ...base, port: 5432 };
+  if (!looksPoolerHost) return [primary];
+  const arr = [primary];
+  if (primary.port !== secondary.port) arr.push(secondary);
+  return arr;
 }
 
-const ssl = isProduction ? { require: true, rejectUnauthorized: false } : false;
+const candidates = buildCandidates(parsed);
 
-const dbConfig = {
-  user: parsed.user,
-  password: parsed.password,
-  host: parsed.host,
-  port,
-  database: parsed.database,
-  ssl,
-  max: 5,
-  idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 10_000,
-  keepAlive: true,
-  keepAliveInitialDelayMillis: 10_000,
-  // เพิ่มเติม: timeout ฝั่งไคลเอนต์กันแฮงค์
-  query_timeout: 15_000, // ms
-  statement_timeout: 20_000, // ส่งลงไปที่เซิร์ฟเวอร์ (pg >= 12 รองรับผ่าน SET)
-};
+async function probeAndPick(cfgs) {
+  for (const cfg of cfgs) {
+    const label = `${cfg.host}:${cfg.port}`;
+    const client = new Client(cfg);
+    try {
+      const t0 = Date.now();
+      await client.connect();
+      await client.query('select 1');
+      await client.end();
+      console.log(`✅ DB probe OK @ ${label} (${Date.now() - t0}ms)`);
+      return cfg;
+    } catch (err) {
+      await client.end().catch(() => {});
+      console.warn(`⚠️  DB probe failed @ ${label}: ${err.code || err.message}`);
+    }
+  }
+  throw new Error('No DB endpoint reachable');
+}
 
-const pool = new Pool(dbConfig);
+let pool;
+async function createPool() {
+  const cfg = await probeAndPick(candidates);
+  console.log(`🔌 Using PRODUCTION DB via ${cfg.host}:${cfg.port} (SSL on, pool size=5)`);
+  pool = new Pool({
+    ...cfg,
+    max: 5,
+    idleTimeoutMillis: 30_000,
+    keepAliveInitialDelayMillis: 10_000,
+  });
+  pool.on('error', (err) => console.error('⚠️  PG pool error:', err.message));
+  return pool;
+}
 
-// กรณีคอนเนกชันตายแบบไม่คาดคิด ให้ log ไว้
-pool.on('error', (err) => {
-  console.error('⚠️  PG pool error:', err.message);
-});
-
-const maskedHost = `${parsed.host}:${port}`;
-console.log(
-  isProduction
-    ? `🔌 Using PRODUCTION DB via ${maskedHost} (SSL on, pool size=${dbConfig.max})`
-    : `🔌 Using LOCAL DB via ${maskedHost}`
-);
-
-module.exports = pool;
+module.exports = (async () => {
+  if (isProduction) return await createPool();
+  const { user, password, host, port, database } = parse(localConn);
+  pool = new Pool({
+    user, password, host, port: port ? Number(port) : 5432, database,
+    ssl: false, max: 5, idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 15_000, keepAlive: true, keepAliveInitialDelayMillis: 10_000,
+  });
+  return pool;
+})();
