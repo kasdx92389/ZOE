@@ -3,10 +3,36 @@ const path = require('path');
 const session = require('express-session');
 const bcrypt = require('bcrypt');
 const pgPool = require('./database.js');
-const PgSession = require('connect-pg-simple')(session);
+
+const { createClient } = require('redis');
+// --- ใช้โค้ดบรรทัดนี้ ซึ่งถูกต้องตาม Document ที่สุด ---
+const RedisStore = require('connect-redis').default;
 
 const app = express();
 const PORT = 3000;
+
+// --- เพิ่มเข้ามา: การตั้งค่า Redis Client ---
+const isProduction = process.env.NODE_ENV === 'production';
+let redisClient;
+
+if (isProduction) {
+  // บน Production (เช่น Render) ให้ใช้ REDIS_URL ที่ service เตรียมให้
+  // **สำคัญ:** คุณต้องตั้งค่า Environment Variable ชื่อ REDIS_URL บน Hosting ของคุณ
+  redisClient = createClient({ url: process.env.REDIS_URL });
+} else {
+  // บนเครื่อง Local ของเรา (ต้องติดตั้งและรัน Redis Server)
+  redisClient = createClient();
+}
+
+redisClient.on('error', err => console.log('Redis Client Error', err));
+redisClient.connect().catch(console.error);
+console.log(isProduction ? "Connecting to external Redis for session storage..." : "Connecting to local Redis for session storage...");
+
+// Initialize Redis store.
+const redisStore = new RedisStore({
+  client: redisClient,
+  prefix: 'webapp-sess:', // ตั้งชื่อ prefix เพื่อไม่ให้ข้อมูล session ชนกับข้อมูลอื่น
+});
 
 app.set('trust proxy', 1);
 
@@ -14,7 +40,7 @@ app.set('trust proxy', 1);
 const MASTER_CODE = 'KESU-SECRET-2025';
 const saltRounds = 10;
 
-// --- Database wrapper ---
+// --- Database wrapper (อัปเกรด transaction helper) ---
 const db = {
     prepare: (sql) => {
         let paramIndex = 1;
@@ -34,7 +60,21 @@ const db = {
         }
     },
     exec: async (sql) => await pgPool.query(sql),
-    transaction: (fn) => fn
+    // --- NEW: อัปเกรดฟังก์ชัน transaction ---
+    transaction: async (callback) => {
+        const client = await pgPool.connect();
+        try {
+            await client.query('BEGIN');
+            const result = await callback(client); // ส่ง client เข้าไปใน callback
+            await client.query('COMMIT');
+            return result;
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error; // ส่ง error ต่อเพื่อให้ route handler จัดการ
+        } finally {
+            client.release();
+        }
+    }
 };
 
 // --- โหลดข้อมูลผู้ใช้ ---
@@ -57,12 +97,9 @@ loadUsers();
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// --- Session configuration ---
+// --- Session configuration (เปลี่ยนมาใช้ RedisStore) ---
 app.use(session({
-    store: new PgSession({
-        pool: pgPool,
-        tableName: 'user_sessions'
-    }),
+    store: redisStore, // <--- ใช้ RedisStore
     secret: 'a-very-secret-key-for-your-session-12345',
     resave: false,
     saveUninitialized: false,
@@ -75,7 +112,7 @@ app.use(session({
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ... (ส่วนของ Routes อื่นๆ เหมือนเดิมทุกประการ) ...
+// --- Routes (ส่วนนี้เหมือนเดิม) ---
 const requireLogin = (req, res, next) => {
     if (req.session.userId) {
         next();
@@ -263,60 +300,52 @@ app.delete('/api/packages/:id', async (req, res) => {
     }
 });
 
+// --- ปรับปรุง: ใช้ db.transaction ---
 app.post('/api/packages/order', async (req, res) => {
     const { order } = req.body;
     if (!Array.isArray(order)) return res.status(400).json({ error: 'Invalid order data' });
     
-    const client = await pgPool.connect();
     try {
-        await client.query('BEGIN');
-        for (const [index, id] of order.entries()) {
-            await client.query('UPDATE packages SET sort_order = $1 WHERE id = $2', [index, id]);
-        }
-        await client.query('COMMIT');
+        await db.transaction(async (client) => {
+            for (const [index, id] of order.entries()) {
+                await client.query('UPDATE packages SET sort_order = $1 WHERE id = $2', [index, id]);
+            }
+        });
         res.json({ ok: true, message: 'Package order updated' });
     } catch (error) {
-        await client.query('ROLLBACK');
         console.error("Error updating package order:", error);
         res.status(500).json({ error: 'Failed to update package order' });
-    } finally {
-        client.release();
     }
 });
 
+// --- ปรับปรุง: ใช้ db.transaction ---
 app.post('/api/packages/bulk-actions', async (req, res) => {
     const { action, ids, updates } = req.body;
     if (!action || !Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'Invalid request' });
 
-    const client = await pgPool.connect();
     try {
-        await client.query('BEGIN');
-
-        if (action === 'delete') {
-            await client.query(`DELETE FROM packages WHERE id = ANY($1::int[])`, [ids]);
-        } else if (action === 'updateStatus') {
-            await client.query(`UPDATE packages SET is_active = $1 WHERE id = ANY($2::int[])`, [req.body.status, ids]);
-        } else if (action === 'bulkEdit' && updates) {
-            const setClauses = [];
-            const params = [];
-            let paramIndex = 1;
-            for (const key in updates) {
-                setClauses.push(`${key} = $${paramIndex++}`);
-                params.push(updates[key]);
+        await db.transaction(async (client) => {
+            if (action === 'delete') {
+                await client.query(`DELETE FROM packages WHERE id = ANY($1::int[])`, [ids]);
+            } else if (action === 'updateStatus') {
+                await client.query(`UPDATE packages SET is_active = $1 WHERE id = ANY($2::int[])`, [req.body.status, ids]);
+            } else if (action === 'bulkEdit' && updates) {
+                const setClauses = [];
+                const params = [];
+                let paramIndex = 1;
+                for (const key in updates) {
+                    setClauses.push(`${key} = $${paramIndex++}`);
+                    params.push(updates[key]);
+                }
+                params.push(ids);
+                const sql = `UPDATE packages SET ${setClauses.join(', ')} WHERE id = ANY($${paramIndex}::int[])`;
+                await client.query(sql, params);
             }
-            params.push(ids);
-            const sql = `UPDATE packages SET ${setClauses.join(', ')} WHERE id = ANY($${paramIndex}::int[])`;
-            await client.query(sql, params);
-        }
-        
-        await client.query('COMMIT');
+        });
         res.json({ ok: true, message: 'Bulk action successful' });
     } catch (error) {
-        await client.query('ROLLBACK');
         console.error('Bulk action error:', error);
         res.status(500).json({ error: 'Failed to perform bulk action' });
-    } finally {
-        client.release();
     }
 });
 
@@ -392,79 +421,75 @@ function genOrderNumber() {
     return `ODR-${y}${m}${day}-${seq}`;
 }
 
+// --- ปรับปรุง: ใช้ db.transaction ---
 app.post('/api/orders', async (req, res) => {
     const b = req.body;
-    const client = await pgPool.connect();
     try {
-        await client.query('BEGIN');
-        const orderNumber = genOrderNumber();
-        const totalPaid = Number(b.total_paid || 0);
-        const cost = Number(b.cost || 0);
-        const profit = totalPaid - cost;
-        const packagesText = b.items?.map(it => `${it.package_name} x${it.quantity}`).join(', ') || '';
-        const packageCount = b.items?.reduce((a, c) => a + Number(c.quantity || 0), 0) || 0;
+        const { id: orderId, order_number: orderNumber } = await db.transaction(async (client) => {
+            const orderNumber = genOrderNumber();
+            const totalPaid = Number(b.total_paid || 0);
+            const cost = Number(b.cost || 0);
+            const profit = totalPaid - cost;
+            const packagesText = b.items?.map(it => `${it.package_name} x${it.quantity}`).join(', ') || '';
+            const packageCount = b.items?.reduce((a, c) => a + Number(c.quantity || 0), 0) || 0;
 
-        const orderQuery = `INSERT INTO orders(order_number, order_date, platform, customer_name, game_name, total_paid, payment_proof_url, sales_proof_url, product_code, package_count, packages_text, cost, profit, status, operator, topup_channel, note) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`;
-        const orderResult = await client.query(orderQuery, [orderNumber, b.order_date, b.platform, b.customer_name, b.game_name, totalPaid, b.payment_proof_url, b.sales_proof_url, b.product_code, packageCount, packagesText, cost, profit, b.status, b.operator, b.topup_channel, b.note]);
-        const orderId = orderResult.rows[0].id;
-        
-        if (Array.isArray(b.items) && b.items.length > 0) {
-            const itemQuery = `INSERT INTO order_items(order_id, package_id, package_name, product_code, quantity, unit_price, cost, total_price) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`;
-            for (const it of b.items) {
-                const qty = Number(it.quantity || 1);
-                const unit = Number(it.unit_price || 0);
-                await client.query(itemQuery, [orderId, it.package_id, it.package_name, it.product_code, qty, unit, it.cost || 0, qty * unit]);
+            const orderQuery = `INSERT INTO orders(order_number, order_date, platform, customer_name, game_name, total_paid, payment_proof_url, sales_proof_url, product_code, package_count, packages_text, cost, profit, status, operator, topup_channel, note) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`;
+            const orderResult = await client.query(orderQuery, [orderNumber, b.order_date, b.platform, b.customer_name, b.game_name, totalPaid, b.payment_proof_url, b.sales_proof_url, b.product_code, packageCount, packagesText, cost, profit, b.status, b.operator, b.topup_channel, b.note]);
+            const newOrderId = orderResult.rows[0].id;
+            
+            if (Array.isArray(b.items) && b.items.length > 0) {
+                const itemQuery = `INSERT INTO order_items(order_id, package_id, package_name, product_code, quantity, unit_price, cost, total_price) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`;
+                for (const it of b.items) {
+                    const qty = Number(it.quantity || 1);
+                    const unit = Number(it.unit_price || 0);
+                    await client.query(itemQuery, [newOrderId, it.package_id, it.package_name, it.product_code, qty, unit, it.cost || 0, qty * unit]);
+                }
             }
-        }
-        await client.query('COMMIT');
+            return { id: newOrderId, order_number: orderNumber };
+        });
         res.status(201).json({ id: orderId, order_number: orderNumber });
     } catch (e) {
-        await client.query('ROLLBACK');
         console.error('Create order error', e);
         res.status(500).json({ error: 'Failed to create order' });
-    } finally {
-        client.release();
     }
 });
 
+// --- ปรับปรุง: ใช้ db.transaction ---
 app.put('/api/orders/:orderNumber', async (req, res) => {
     const { orderNumber } = req.params;
     const b = req.body;
-    const client = await pgPool.connect();
     try {
-        await client.query('BEGIN');
-        const orderResult = await client.query('SELECT id FROM orders WHERE order_number = $1', [orderNumber]);
-        if (orderResult.rows.length === 0) throw new Error('OrderNotFound');
-        
-        const numericId = orderResult.rows[0].id;
-        const totalPaid = Number(b.total_paid || 0);
-        const cost = Number(b.cost || 0);
-        const profit = totalPaid - cost;
-        const packagesText = b.items?.map(it => `${it.package_name} x${it.quantity}`).join(', ') || '';
-        const packageCount = b.items?.reduce((a, c) => a + Number(c.quantity || 0), 0) || 0;
+        await db.transaction(async (client) => {
+            const orderResult = await client.query('SELECT id FROM orders WHERE order_number = $1', [orderNumber]);
+            if (orderResult.rows.length === 0) throw new Error('OrderNotFound');
+            
+            const numericId = orderResult.rows[0].id;
+            const totalPaid = Number(b.total_paid || 0);
+            const cost = Number(b.cost || 0);
+            const profit = totalPaid - cost;
+            const packagesText = b.items?.map(it => `${it.package_name} x${it.quantity}`).join(', ') || '';
+            const packageCount = b.items?.reduce((a, c) => a + Number(c.quantity || 0), 0) || 0;
 
-        await client.query(`UPDATE orders SET order_date=$1, platform=$2, customer_name=$3, game_name=$4, total_paid=$5, payment_proof_url=$6, sales_proof_url=$7, product_code=$8, package_count=$9, packages_text=$10, cost=$11, profit=$12, status=$13, operator=$14, topup_channel=$15, note=$16 WHERE id=$17`, [b.order_date, b.platform, b.customer_name, b.game_name, totalPaid, b.payment_proof_url, b.sales_proof_url, b.product_code, packageCount, packagesText, cost, profit, b.status, b.operator, b.topup_channel, b.note, numericId]);
-        
-        await client.query('DELETE FROM order_items WHERE order_id = $1', [numericId]);
-        if (Array.isArray(b.items) && b.items.length > 0) {
-            const itemQuery = `INSERT INTO order_items(order_id, package_id, package_name, product_code, quantity, unit_price, cost, total_price) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`;
-            for (const newItem of b.items) {
-                const qty = Number(newItem.quantity || 1);
-                const unit = Number(newItem.unit_price || 0);
-                await client.query(itemQuery, [numericId, newItem.package_id, newItem.package_name, newItem.product_code, qty, unit, newItem.cost || 0, qty * unit]);
+            await client.query(`UPDATE orders SET order_date=$1, platform=$2, customer_name=$3, game_name=$4, total_paid=$5, payment_proof_url=$6, sales_proof_url=$7, product_code=$8, package_count=$9, packages_text=$10, cost=$11, profit=$12, status=$13, operator=$14, topup_channel=$15, note=$16 WHERE id=$17`, [b.order_date, b.platform, b.customer_name, b.game_name, totalPaid, b.payment_proof_url, b.sales_proof_url, b.product_code, packageCount, packagesText, cost, profit, b.status, b.operator, b.topup_channel, b.note, numericId]);
+            
+            await client.query('DELETE FROM order_items WHERE order_id = $1', [numericId]);
+            if (Array.isArray(b.items) && b.items.length > 0) {
+                const itemQuery = `INSERT INTO order_items(order_id, package_id, package_name, product_code, quantity, unit_price, cost, total_price) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`;
+                for (const newItem of b.items) {
+                    const qty = Number(newItem.quantity || 1);
+                    const unit = Number(newItem.unit_price || 0);
+                    await client.query(itemQuery, [numericId, newItem.package_id, newItem.package_name, newItem.product_code, qty, unit, newItem.cost || 0, qty * unit]);
+                }
             }
-        }
-        await client.query('COMMIT');
+        });
         res.json({ ok: true, order_number: orderNumber });
     } catch (e) {
-        await client.query('ROLLBACK');
         console.error(`Update order error for ${orderNumber}:`, e);
         if (e.message === 'OrderNotFound') return res.status(404).json({ error: 'Order not found' });
         res.status(500).json({ error: 'Failed to update order' });
-    } finally {
-        client.release();
     }
 });
+
 
 app.delete('/api/orders/:orderNumber', async (req, res) => {
     const { orderNumber } = req.params;
@@ -505,7 +530,6 @@ app.get('/api/orders/export/csv', async (req, res) => {
 
         let csv = '\ufeff' + thaiHeaders.join(',') + '\n';
 
-        // --- โค้ดส่วนที่คุณส่งมา ---
         for (const order of orders) {
             const row = dbColumns.map(header => {
                 let value = order[header]; 
@@ -524,7 +548,6 @@ app.get('/api/orders/export/csv', async (req, res) => {
             });
             csv += row.join(',') + '\n';
         }
-        // --------------------------
 
         const fileName = `orders-export-${new Date().toISOString().slice(0, 10)}.csv`;
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
@@ -541,6 +564,7 @@ app.get('/api/orders/export/csv', async (req, res) => {
 
 // --- Server Start ---
 app.listen(PORT, () => console.log(`Server is running at http://localhost:${PORT}`));
+
 /* ========================================================
  * Summary Page & API (Appended - non-breaking)
  * ====================================================== */
