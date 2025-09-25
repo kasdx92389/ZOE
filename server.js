@@ -93,9 +93,11 @@ app.use(express.json({ limit: '1mb' }));
 
 // session (ใช้ PgSession + conObject)
 const PgSession = PgSessionFactory(session);
+
 app.use(session({
   store: new PgSession({
-    ...(SESSION_CONOBJECT ? { conObject: SESSION_CONOBJECT } : { pool: pgPool }),
+    // ใช้ pool เดียวกับแอป → ได้ fallback/candidate เดียวกัน
+    pool: pgPool,
     tableName: 'user_sessions',
     createTableIfMissing: true,
     pruneSessionInterval: 3600,

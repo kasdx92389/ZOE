@@ -4,55 +4,79 @@ const { parse } = require('pg-connection-string');
 
 const isProd = (process.env.NODE_ENV || '').toLowerCase() === 'production';
 
-// ⬇️ เปลี่ยนลำดับความสำคัญ: ใช้ DATABASE_URL (Direct :5432) ก่อน, ค่อย fallback ไป POOLER
-const BASE_CONN =
-  (process.env.DATABASE_URL && process.env.DATABASE_URL.trim()) ||
-  (process.env.DATABASE_URL_POOLER && process.env.DATABASE_URL_POOLER.trim()) ||
-  (!isProd ? 'postgres://postgres:72rmcBtnuKJ2pVg@localhost:5432/postgres' : '');
+// ดึงทั้งสอง URL (ถ้ามี)
+const DIRECT_URL = (process.env.DATABASE_URL || '').trim();
+const POOLER_URL = (process.env.DATABASE_URL_POOLER || '').trim();
 
-if (!BASE_CONN) {
+if (!DIRECT_URL && !POOLER_URL) {
   console.error('❌ DATABASE_URL(_POOLER) not set');
   process.exit(1);
 }
 
-const parsed = parse(BASE_CONN);
-const looksSupabase =
-  /supabase\.co$/i.test(parsed.host || '') ||
-  /pooler\.supabase\.com$/i.test(parsed.host || '');
-
-const forcePort = (process.env.FORCE_DB_PORT && Number(process.env.FORCE_DB_PORT)) || null;
-
-const baseCfg = {
-  user: parsed.user,
-  password: parsed.password,
-  host: parsed.host,
-  database: parsed.database,
-  ssl: isProd ? { require: true, rejectUnauthorized: false } : false,
-  keepAlive: true,
-  statement_timeout: 20_000,
-  query_timeout: 15_000,
-  connectionTimeoutMillis: 10_000,
-};
-
-const seen = new Set();
-const candidates = [];
-function pushUnique(port) {
-  const key = `${baseCfg.host}:${port}`;
-  if (!seen.has(key)) { candidates.push({ ...baseCfg, port }); seen.add(key); }
+function mkBaseCfg(url) {
+  const p = parse(url);
+  return {
+    user: p.user,
+    password: p.password,
+    host: p.host,
+    database: p.database,
+    // SSL safe-by-default ใน prod
+    ssl: isProd ? { require: true, rejectUnauthorized: false } : false,
+    keepAlive: true,
+    statement_timeout: 20_000,
+    query_timeout: 15_000,
+    connectionTimeoutMillis: 10_000,
+    _parsedPort: p.port ? Number(p.port) : null,
+  };
 }
 
-if (forcePort) {
-  pushUnique(forcePort);
-} else {
-  // ถ้าเป็น Supabase ให้ลอง 6543 ก่อน แล้ว 5432
-  if (looksSupabase) pushUnique(6543);
-  pushUnique(5432);
-  pushUnique(parsed.port ? Number(parsed.port) : 5432);
+const candidates = [];
+const seen = new Set();
+function addCandidate(host, port, base) {
+  if (!host || !port) return;
+  const key = `${host}:${port}`;
+  if (seen.has(key)) return;
+  seen.add(key);
+  candidates.push({
+    user: base.user,
+    password: base.password,
+    host,
+    database: base.database,
+    ssl: base.ssl,
+    keepAlive: base.keepAlive,
+    statement_timeout: base.statement_timeout,
+    query_timeout: base.query_timeout,
+    connectionTimeoutMillis: base.connectionTimeoutMillis,
+    port,
+  });
+}
+
+// 1) จาก DIRECT_URL (db.<project>.supabase.co)
+if (DIRECT_URL) {
+  const b = mkBaseCfg(DIRECT_URL);
+  // ลองพอร์ตที่มากับ URL (ถ้ามี) + 5432
+  if (b._parsedPort) addCandidate(b.host, b._parsedPort, b);
+  addCandidate(b.host, 5432, b);
+}
+
+// 2) จาก POOLER_URL (aws-1-ap-southeast-1.pooler.supabase.com)
+if (POOLER_URL) {
+  const b = mkBaseCfg(POOLER_URL);
+  // ลองพอร์ต pooler (มัก 6543/5432) + พอร์ตใน URL
+  addCandidate(b.host, 6543, b);
+  addCandidate(b.host, 5432, b);
+  if (b._parsedPort) addCandidate(b.host, b._parsedPort, b);
+}
+
+if (candidates.length === 0) {
+  console.error('❌ No DB candidates found from env.');
+  process.exit(1);
 }
 
 let currentPool = null;
 let currentLabel = '';
 let ready = false;
+let reprobeTimer = null;
 
 async function probeOnce(cfg) {
   const label = `${cfg.host}:${cfg.port}`;
@@ -71,7 +95,6 @@ async function probeOnce(cfg) {
   }
 }
 
-let reprobeTimer = null;
 async function chooseAndConnect() {
   for (const cfg of candidates) {
     if (await probeOnce(cfg)) {
@@ -94,6 +117,7 @@ async function chooseAndConnect() {
       return;
     }
   }
+  // ทั้งหมดล้มเหลว → ตั้งเวลาลองใหม่
   ready = false;
   triggerReprobeSoon();
 }
@@ -109,6 +133,7 @@ function triggerReprobeSoon(delay = 5000) {
   }, delay);
 }
 
+// เริ่มต้น
 chooseAndConnect().catch((e) => {
   console.error('Initial connect failed:', e.message);
   triggerReprobeSoon();
@@ -121,14 +146,13 @@ function waitReady() {
 }
 function notifyReady() { while (waiters.length) waiters.shift().resolve(); }
 
-const transientCodes = new Set([
-  '57P01','57P02','57P03','ECONNREFUSED','ETIMEDOUT','EHOSTUNREACH','EPIPE','ECONNRESET'
+const transient = new Set([
+  '57P01','57P02','57P03','ECONNREFUSED','ETIMEDOUT','EHOSTUNREACH','EPIPE','ECONNRESET','ENETUNREACH'
 ]);
 
 async function runWithRetry(op, name = 'query') {
   const maxTries = 6;
-  let attempt = 0;
-  for (;;) {
+  for (let attempt = 1; attempt <= maxTries; attempt++) {
     try {
       await waitReady();
       const out = await op();
@@ -136,16 +160,15 @@ async function runWithRetry(op, name = 'query') {
       return out;
     } catch (e) {
       const code = e.code || e.errno || e.message;
-      const isTransient = transientCodes.has(code) || /timeout|terminated/i.test(String(code));
-      attempt++;
-      if (!isTransient || attempt >= maxTries) {
+      const isTransient = transient.has(code) || /timeout|terminated|unreach/i.test(String(code));
+      if (!isTransient || attempt === maxTries) {
         console.error(`❌ ${name} failed (attempt ${attempt}/${maxTries}) @ ${currentLabel}:`, code);
         throw e;
       }
       console.warn(`↻ ${name} retry ${attempt}/${maxTries} due to ${code}`);
       ready = false;
       triggerReprobeSoon(1000 * attempt);
-      await new Promise(r => setTimeout(r, 300 + 200 * attempt));
+      await new Promise(r => setTimeout(r, 300 + 250 * attempt));
     }
   }
 }
