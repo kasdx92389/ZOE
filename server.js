@@ -93,13 +93,41 @@ app.use(express.json());
  *  session ก่อนทุก route
  *  (อัปเดตเฉพาะส่วนนี้: ใช้ conObject แบบแยก field + SSL non-verify)
  * ========================= */
+// ... (ส่วนบนไฟล์เดิมทั้งหมดคงเดิม) ...
 const PgSession = PgSessionFactory(session);
+
+// ✅ ใช้ DATABASE_URL ก่อน (Direct 5432) แล้วค่อย fallback ไป POOLER
+function pickRawDbUrl() {
+  return (
+    (process.env.DATABASE_URL && process.env.DATABASE_URL.trim()) ||
+    (process.env.DATABASE_URL_POOLER && process.env.DATABASE_URL_POOLER.trim()) ||
+    ''
+  );
+}
+
+// สร้าง conObject แบบแยก field + บังคับ 5432 + SSL non-verify
+function buildSessionConObject() {
+  const raw = pickRawDbUrl();
+  if (!raw) return undefined;
+  const u = new URL(raw);
+  const database = decodeURIComponent(u.pathname.replace(/^\//, ''));
+  return {
+    host: u.hostname,            // ถ้าเป็น db-xxxx.supabase.co จะวิ่ง direct
+    port: 5432,                  // บังคับพอร์ต 5432 เสมอ
+    user: decodeURIComponent(u.username),
+    password: decodeURIComponent(u.password),
+    database,
+    ssl: { rejectUnauthorized: false },   // กัน self-signed
+    statement_timeout: 20_000,
+    query_timeout: 15_000,
+    connectionTimeoutMillis: 10_000,
+  };
+}
+const SESSION_CONOBJECT = buildSessionConObject();
+
 app.use(session({
   store: new PgSession({
-    ...(SESSION_CONOBJECT
-      ? { conObject: SESSION_CONOBJECT }        // ใช้ conObject ใหม่
-      : { pool: pgPool }                        // fallback
-    ),
+    ...(SESSION_CONOBJECT ? { conObject: SESSION_CONOBJECT } : { pool: pgPool }),
     tableName: 'user_sessions',
     createTableIfMissing: true,
     pruneSessionInterval: 3600,

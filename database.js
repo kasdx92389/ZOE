@@ -1,14 +1,13 @@
 // database.js
-// กันตาย: failover 6543→5432, background re-probe, circuit-breaker + proxy Pool
 const { Pool, Client } = require('pg');
 const { parse } = require('pg-connection-string');
 
-const isProd =
-  (process.env.NODE_ENV || '').toLowerCase() === 'production';
+const isProd = (process.env.NODE_ENV || '').toLowerCase() === 'production';
 
+// ⬇️ เปลี่ยนลำดับความสำคัญ: ใช้ DATABASE_URL (Direct :5432) ก่อน, ค่อย fallback ไป POOLER
 const BASE_CONN =
-  (process.env.DATABASE_URL_POOLER && process.env.DATABASE_URL_POOLER.trim()) ||
   (process.env.DATABASE_URL && process.env.DATABASE_URL.trim()) ||
+  (process.env.DATABASE_URL_POOLER && process.env.DATABASE_URL_POOLER.trim()) ||
   (!isProd ? 'postgres://postgres:72rmcBtnuKJ2pVg@localhost:5432/postgres' : '');
 
 if (!BASE_CONN) {
@@ -21,7 +20,7 @@ const looksSupabase =
   /supabase\.co$/i.test(parsed.host || '') ||
   /pooler\.supabase\.com$/i.test(parsed.host || '');
 
-const forcePort = process.env.FORCE_DB_PORT && Number(process.env.FORCE_DB_PORT) || null;
+const forcePort = (process.env.FORCE_DB_PORT && Number(process.env.FORCE_DB_PORT)) || null;
 
 const baseCfg = {
   user: parsed.user,
@@ -45,6 +44,7 @@ function pushUnique(port) {
 if (forcePort) {
   pushUnique(forcePort);
 } else {
+  // ถ้าเป็น Supabase ให้ลอง 6543 ก่อน แล้ว 5432
   if (looksSupabase) pushUnique(6543);
   pushUnique(5432);
   pushUnique(parsed.port ? Number(parsed.port) : 5432);
@@ -81,7 +81,6 @@ async function chooseAndConnect() {
         idleTimeoutMillis: 30_000,
         keepAliveInitialDelayMillis: 10_000,
       });
-
       pool.on('error', (err) => {
         console.error('⚠️  PG pool error:', err.code || err.message);
         triggerReprobeSoon();
@@ -115,17 +114,17 @@ chooseAndConnect().catch((e) => {
   triggerReprobeSoon();
 });
 
-// ---- Proxy pool with retries ----
 const waiters = [];
-function notifyReady() { while (waiters.length) waiters.shift().resolve(); }
 function waitReady() {
   if (ready && currentPool) return Promise.resolve();
   return new Promise((resolve) => waiters.push({ resolve }));
 }
+function notifyReady() { while (waiters.length) waiters.shift().resolve(); }
+
 const transientCodes = new Set([
-  '57P01','57P02','57P03',
-  'ECONNREFUSED','ETIMEDOUT','EHOSTUNREACH','EPIPE','ECONNRESET'
+  '57P01','57P02','57P03','ECONNREFUSED','ETIMEDOUT','EHOSTUNREACH','EPIPE','ECONNRESET'
 ]);
+
 async function runWithRetry(op, name = 'query') {
   const maxTries = 6;
   let attempt = 0;
