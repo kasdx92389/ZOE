@@ -4,12 +4,9 @@ const { parse } = require('pg-connection-string');
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-// ----- เลือก connection string -----
-// ผลักให้ใช้ POOLER ก่อนเสมอ ถ้ามี
 const envConn =
   process.env.DATABASE_URL_POOLER?.trim() ||
-  process.env.DATABASE_URL?.trim() ||
-  '';
+  process.env.DATABASE_URL?.trim() || '';
 
 const localConn = `postgres://postgres:72rmcBtnuKJ2pVg@localhost:5432/postgres`;
 const connectionString = isProduction ? envConn : localConn;
@@ -21,20 +18,18 @@ if (!connectionString) {
 
 const parsed = parse(connectionString);
 
-// ----- เงื่อนไขช่วยเหลือ: ถ้าเป็น Supabase + มี pgbouncer=true แต่ยังเป็น 5432 → เปลี่ยนเป็น 6543 -----
 const looksLikeSupabase =
   /supabase\.co$/.test(parsed.host || '') || /pooler\.supabase\.com$/.test(parsed.host || '');
 const hasPgBouncerParam = /\bpgbouncer=true\b/i.test(connectionString);
 
 let port = parsed.port ? Number(parsed.port) : 5432;
-if (looksLikeSupabase && hasPgBouncerParam && port === 5432) {
+if (looksLikeSupabase && (hasPgBouncerParam || /pooler\.supabase\.com$/.test(parsed.host || ''))) {
+  // ใช้ 6543 เมื่อเป็น pooler
   port = 6543;
 }
 
-// ----- SSL กัน self-signed บน Render -----
 const ssl = isProduction ? { require: true, rejectUnauthorized: false } : false;
 
-// ----- ค่าพูลเพื่อความเสถียร -----
 const dbConfig = {
   user: parsed.user,
   password: parsed.password,
@@ -47,11 +42,18 @@ const dbConfig = {
   connectionTimeoutMillis: 10_000,
   keepAlive: true,
   keepAliveInitialDelayMillis: 10_000,
+  // เพิ่มเติม: timeout ฝั่งไคลเอนต์กันแฮงค์
+  query_timeout: 15_000, // ms
+  statement_timeout: 20_000, // ส่งลงไปที่เซิร์ฟเวอร์ (pg >= 12 รองรับผ่าน SET)
 };
 
 const pool = new Pool(dbConfig);
 
-// แสดงปลายทาง (mask user/pass) ช่วย debug ได้หากยังหลุด
+// กรณีคอนเนกชันตายแบบไม่คาดคิด ให้ log ไว้
+pool.on('error', (err) => {
+  console.error('⚠️  PG pool error:', err.message);
+});
+
 const maskedHost = `${parsed.host}:${port}`;
 console.log(
   isProduction

@@ -1,6 +1,6 @@
 // server.js
 const dns = require('dns');
-dns.setDefaultResultOrder('ipv4first'); // กัน IPv6 ก่อนแล้วหลุด
+dns.setDefaultResultOrder('ipv4first');
 
 const express = require('express');
 const path = require('path');
@@ -17,11 +17,11 @@ app.set('trust proxy', 1);
 const MASTER_CODE = 'KESU-SECRET-2025';
 const saltRounds = 10;
 
-// DB wrapper เดิม
+// ---------- DB wrapper ----------
 const db = {
   prepare: (sql) => {
-    let paramIndex = 1;
-    const pgSql = sql.replace(/\?/g, () => `$${paramIndex++}`);
+    let i = 1;
+    const pgSql = sql.replace(/\?/g, () => `$${i++}`);
     return {
       get: async (...params) => (await pgPool.query(pgSql, params)).rows[0],
       all: async (...params) => (await pgPool.query(pgSql, params)).rows,
@@ -29,27 +29,36 @@ const db = {
     };
   },
   exec: async (sql) => await pgPool.query(sql),
-  transaction: (fn) => fn
+  transaction: (fn) => fn,
 };
 
-let users = {};
-const loadUsers = async () => {
-  try {
-    const userRows = await db.prepare('SELECT username, password_hash FROM users').all();
-    users = userRows.reduce((acc, user) => {
-      acc[user.username] = user.password_hash;
-      return acc;
-    }, {});
-    console.log('👥 Users loaded.');
-  } catch (error) {
-    console.error('Failed to load users:', error);
+// ---------- helpers ----------
+async function retry(fn, { tries = 5, base = 800, factor = 1.8, name = 'task' } = {}) {
+  let attempt = 0;
+  for (;;) {
+    try {
+      return await fn();
+    } catch (err) {
+      attempt++;
+      if (attempt >= tries) throw err;
+      const wait = Math.round(base * Math.pow(factor, attempt - 1));
+      console.warn(`↻ Retry ${name} (${attempt}/${tries}) after ${wait}ms: ${err.code || err.message}`);
+      await new Promise(r => setTimeout(r, wait));
+    }
   }
-};
-loadUsers();
+}
+
+let users = {};
+async function loadUsers() {
+  const rows = await db.prepare('SELECT username, password_hash FROM users').all();
+  users = rows.reduce((acc, u) => (acc[u.username] = u.password_hash, acc), {});
+  console.log(`👥 Users loaded: ${rows.length}`);
+}
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
+// ---------- sessions ----------
 app.use(session({
   store: new PgSession({
     pool: pgPool,
@@ -68,24 +77,22 @@ app.use(session({
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+// healthz
 app.get('/healthz', async (_req, res) => {
-  try {
-    await pgPool.query('select 1');
-    res.status(200).send('ok');
-  } catch {
-    res.status(500).send('db down');
-  }
+  try { await pgPool.query('select 1'); res.status(200).send('ok'); }
+  catch { res.status(500).send('db down'); }
 });
 
 const requireLogin = (req, res, next) => (req.session.userId ? next() : res.redirect('/'));
 
-app.get('/', (req, res) => {
-  if (req.session.userId) res.redirect('/admin/home');
-  else res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
+// routes (เดิม)
+app.get('/', (req, res) =>
+  req.session.userId
+    ? res.redirect('/admin/home')
+    : res.sendFile(path.join(__dirname, 'public', 'index.html'))
+);
 app.get('/register', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'admin-register.html')));
-app.get('/terms', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'terms.html')));
+app.get('/terms',    (_req, res) => res.sendFile(path.join(__dirname, 'public', 'terms.html')));
 
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
@@ -106,26 +113,22 @@ app.post('/register', async (req, res) => {
 
   const hashedPassword = await bcrypt.hash(password, saltRounds);
   await db.prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)').run(username, hashedPassword);
-  await loadUsers();
+  await retry(loadUsers, { name: 'loadUsers-after-register' });
   res.redirect(`/?success=${encodeURIComponent('สร้างบัญชีสำเร็จ!')}`);
 });
 
 app.get('/logout', (req, res) => req.session.destroy(() => res.redirect('/')));
 
-// ……… (routes อื่นๆ ของคุณคงเดิม) ………
-
-// Startup รอ DB พร้อมก่อน
+// ---------- startup gating ----------
 async function waitForDb({ tries = 12, baseDelay = 1500, factor = 1.6 } = {}) {
-  let attempt = 0;
-  while (attempt < tries) {
-    attempt++;
+  for (let k = 1; k <= tries; k++) {
     try {
       await pgPool.query('select 1');
       console.log('✅ Database is reachable');
       return;
     } catch (err) {
-      const delay = Math.round(baseDelay * Math.pow(factor, attempt - 1));
-      console.warn(`DB not ready (try ${attempt}/${tries}): ${err.code || err.message}`);
+      const delay = Math.round(baseDelay * Math.pow(factor, k - 1));
+      console.warn(`DB not ready (try ${k}/${tries}): ${err.code || err.message}`);
       await new Promise(r => setTimeout(r, delay));
     }
   }
@@ -136,6 +139,9 @@ async function start() {
   try {
     console.log('🚀 Starting app…');
     await waitForDb();
+    // ► ย้าย loadUsers มาไว้หลัง DB พร้อม และใส่ retry
+    await retry(loadUsers, { name: 'loadUsers' });
+
     app.listen(PORT, () => console.log(`🟢 Server running on :${PORT}`));
   } catch (e) {
     console.error('❌ Fatal: service cannot start', e.message);
@@ -143,6 +149,7 @@ async function start() {
   }
 }
 
+// graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('⏳ Shutting down…');
   try { await pgPool.end(); } catch {}
