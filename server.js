@@ -76,6 +76,38 @@ const db = {
   }
 };
 
+/** --- DB readiness & helper backoff --- */
+async function waitForDbReady(attempts = 8, firstDelayMs = 500) {
+  let delay = firstDelayMs;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      await pgPool.query('SELECT 1');
+      return true;
+    } catch (err) {
+      console.warn(`DB not ready (try ${i}/${attempts}):`, err?.code || err?.message);
+      if (i === attempts) throw err;
+      await new Promise(r => setTimeout(r, delay));
+      delay = Math.min(delay * 2, 10_000);
+    }
+  }
+}
+async function loadUsersWithRetry(max = 5) {
+  let tries = 0, delay = 500;
+  while (tries < max) {
+    try {
+      await loadUsers();
+      return;
+    } catch (e) {
+      tries++;
+      console.error(`Failed to load users (try ${tries}/${max}):`, e?.code || e?.message);
+      if (tries >= max) throw e;
+      await new Promise(r => setTimeout(r, delay));
+      delay = Math.min(delay * 2, 8000);
+    }
+  }
+}
+
+
 // --- โหลดข้อมูลผู้ใช้ ---
 let users = {};
 const loadUsers = async () => {
@@ -90,7 +122,7 @@ const loadUsers = async () => {
         console.error('Failed to load users from database:', error);
     }
 };
-loadUsers();
+// initial loadUsers skipped; will run after DB is ready
 
 // --- Middleware ---
 app.use(express.urlencoded({ extended: true }));
@@ -153,7 +185,7 @@ app.post('/register', async (req, res) => {
     await db.prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)')
         .run(username, hashedPassword);
 
-    await loadUsers();
+    await // initial loadUsers skipped; will run after DB is ready
     res.redirect(`/?success=${encodeURIComponent('สร้างบัญชีสำเร็จ!')}`);
 });
 app.get('/logout', (req, res) => {
@@ -375,28 +407,13 @@ app.get('/api/orders', async (req, res) => {
             pgPool.query(countSql, params.slice(0, countSql.match(/\$/g)?.length || 0)),
             pgPool.query(dataSql, params)
         ]);
-
         const total = parseInt(totalResult.rows[0].total, 10);
         const orders = ordersResult.rows;
-
-        // แก้ไข: ลด N+1 Query โดยการดึง items ทั้งหมดในครั้งเดียว
-        if (orders.length > 0) {
-            const orderIds = orders.map(order => order.id);
-            const itemsResult = await pgPool.query('SELECT * FROM order_items WHERE order_id = ANY($1::int[])', [orderIds]);
-            
-            const itemsByOrderId = itemsResult.rows.reduce((acc, item) => {
-                if (!acc[item.order_id]) {
-                    acc[item.order_id] = [];
-                }
-                acc[item.order_id].push(item);
-                return acc;
-            }, {});
-
-            for (const order of orders) {
-                order.items = itemsByOrderId[order.id] || [];
-            }
+        const itemsStmt = 'SELECT * FROM order_items WHERE order_id = $1';
+        for (const order of orders) {
+            const itemsResult = await pgPool.query(itemsStmt, [order.id]);
+            order.items = itemsResult.rows;
         }
-
         res.json({ orders, total });
     } catch (e) {
         console.error('Orders list error', e);
@@ -543,8 +560,40 @@ app.get('/api/orders/export/csv', async (req, res) => {
         res.status(500).send('Failed to export orders.');
     }
 });
+
+
+/** Health check for Render */
+app.get('/healthz', async (_req, res) => {
+  try {
+    await pgPool.query('SELECT 1');
+    res.status(200).send('ok');
+  } catch {
+    res.status(503).send('db-unhealthy');
+  }
+});
+
 // --- Server Start ---
-app.listen(PORT, () => console.log(`Server is running at http://localhost:${PORT}`));
+(async () => {
+  try {
+    await waitForDbReady();
+    await loadUsersWithRetry();
+    app.listen(PORT, () => console.log(`Server is running at http://localhost:${PORT}`));
+  } catch (e) {
+    console.error('Fatal: service cannot start because DB is unavailable:', e?.message);
+    process.exit(1);
+  }
+})();
+
+/** Graceful shutdown */
+function shutdown(sig) {
+  console.log(`\n${sig} received, shutting down gracefully...`);
+  Promise.allSettled([
+    redisClient?.quit?.(),
+    pgPool.end()
+  ]).finally(() => process.exit(0));
+}
+['SIGINT','SIGTERM'].forEach(s => process.on(s, () => shutdown(s)));
+
 /* ========================================================
  * Summary Page & API (Appended - non-breaking)
  * ====================================================== */
