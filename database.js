@@ -1,87 +1,59 @@
 // database.js
-const { Pool, Client } = require('pg');
+const { Pool } = require('pg');
 const { parse } = require('pg-connection-string');
 
-const isProduction = process.env.NODE_ENV === 'production';
+const isProd = process.env.NODE_ENV === 'production';
 
+// ใช้ URL จาก ENV: ให้ Pooler มาก่อน (6543) แล้วค่อย Direct (5432)
 const envConn =
   (process.env.DATABASE_URL_POOLER && process.env.DATABASE_URL_POOLER.trim()) ||
   (process.env.DATABASE_URL && process.env.DATABASE_URL.trim()) || '';
-const localConn = `postgres://postgres:72rmcBtnuKJ2pVg@localhost:5432/postgres`;
-const connectionString = isProduction ? envConn : localConn;
 
-if (!connectionString) {
+const localConn = 'postgres://postgres:72rmcBtnuKJ2pVg@localhost:5432/postgres';
+const connStr = isProd ? envConn : localConn;
+
+if (!connStr) {
   console.error('❌ DATABASE_URL / DATABASE_URL_POOLER is not set (production mode)');
   process.exit(1);
 }
 
-const parsed = parse(connectionString);
+const parsed = parse(connStr);
 
-function buildCandidates(p) {
-  const host = p.host;
-  const base = {
-    user: p.user,
-    password: p.password,
-    host,
-    database: p.database,
-    ssl: isProduction ? { require: true, rejectUnauthorized: false } : false,
-    keepAlive: true,
-    statement_timeout: 20_000,
-    query_timeout: 15_000,
-    connectionTimeoutMillis: 15_000,
-  };
-  const looksPoolerHost = /pooler\.supabase\.com$/.test(host) || /supabase\.co$/.test(host);
-  const givenPort = p.port ? Number(p.port) : 5432;
-  const primary = { ...base, port: looksPoolerHost ? 6543 : givenPort };
-  const secondary = { ...base, port: 5432 };
-  if (!looksPoolerHost) return [primary];
-  const arr = [primary];
-  if (primary.port !== secondary.port) arr.push(secondary);
-  return arr;
-}
+// ถ้าเป็น Supabase pooler แต่พอร์ตไม่ใช่ 6543 ให้บังคับเป็น 6543
+const looksLikeSupabase =
+  /supabase\.co$/i.test(parsed.host || '') || /pooler\.supabase\.com$/i.test(parsed.host || '');
+let port = parsed.port ? Number(parsed.port) : 5432;
+if (looksLikeSupabase) port = 6543;
 
-const candidates = buildCandidates(parsed);
+// SSL กัน self-signed บน Render
+const ssl = isProd ? { require: true, rejectUnauthorized: false } : false;
 
-async function probeAndPick(cfgs) {
-  for (const cfg of cfgs) {
-    const label = `${cfg.host}:${cfg.port}`;
-    const client = new Client(cfg);
-    try {
-      const t0 = Date.now();
-      await client.connect();
-      await client.query('select 1');
-      await client.end();
-      console.log(`✅ DB probe OK @ ${label} (${Date.now() - t0}ms)`);
-      return cfg;
-    } catch (err) {
-      await client.end().catch(() => {});
-      console.warn(`⚠️  DB probe failed @ ${label}: ${err.code || err.message}`);
-    }
-  }
-  throw new Error('No DB endpoint reachable');
-}
+const pool = new Pool({
+  user: parsed.user,
+  password: parsed.password,
+  host: parsed.host,
+  port,
+  database: parsed.database,
+  ssl,
+  // tuning เพื่อความเสถียร
+  max: 5,
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 15_000,
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10_000,
+  // กันแฮงค์ระหว่าง query
+  statement_timeout: 20_000,
+  query_timeout: 15_000,
+});
 
-let pool;
-async function createPool() {
-  const cfg = await probeAndPick(candidates);
-  console.log(`🔌 Using PRODUCTION DB via ${cfg.host}:${cfg.port} (SSL on, pool size=5)`);
-  pool = new Pool({
-    ...cfg,
-    max: 5,
-    idleTimeoutMillis: 30_000,
-    keepAliveInitialDelayMillis: 10_000,
-  });
-  pool.on('error', (err) => console.error('⚠️  PG pool error:', err.message));
-  return pool;
-}
+pool.on('error', (err) => {
+  console.error('⚠️  PG pool error:', err.message);
+});
 
-module.exports = (async () => {
-  if (isProduction) return await createPool();
-  const { user, password, host, port, database } = parse(localConn);
-  pool = new Pool({
-    user, password, host, port: port ? Number(port) : 5432, database,
-    ssl: false, max: 5, idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 15_000, keepAlive: true, keepAliveInitialDelayMillis: 10_000,
-  });
-  return pool;
-})();
+console.log(
+  isProd
+    ? `🔌 Using PRODUCTION DB via ${parsed.host}:${port} (SSL on, pool size=5)`
+    : `🔌 Using LOCAL DB via ${parsed.host || 'localhost'}:${port}`
+);
+
+module.exports = pool;
