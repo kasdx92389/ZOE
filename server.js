@@ -382,19 +382,70 @@ function buildOrdersQuery(queryParams) {
 
 app.get('/api/orders', async (req, res) => {
     try {
-        const { dataSql, countSql, params } = buildOrdersQuery(req.query);
+        const { q = '', status = '', platform = '', startDate, endDate, page = 1, limit = 20 } = req.query;
+
+        // --- Step 1: Build the WHERE clause and parameters for filtering orders ---
+        let whereClauses = [];
+        const params = [];
+        let paramIndex = 1;
+
+        if (q) {
+            whereClauses.push(`(o.order_number ILIKE $${paramIndex} OR o.customer_name ILIKE $${paramIndex})`);
+            params.push(`%${q}%`); // Only one parameter for both ILIKEs with this syntax
+            paramIndex++;
+        }
+        if (status) {
+            whereClauses.push(`o.status = $${paramIndex++}`);
+            params.push(status);
+        }
+        if (platform) {
+            whereClauses.push(`o.platform = $${paramIndex++}`);
+            params.push(platform);
+        }
+        if (startDate) {
+            whereClauses.push(`((o.order_date::timestamptz) AT TIME ZONE 'Asia/Bangkok')::date >= $${paramIndex++}`);
+            params.push(startDate);
+        }
+        if (endDate) {
+            whereClauses.push(`((o.order_date::timestamptz) AT TIME ZONE 'Asia/Bangkok')::date <= $${paramIndex++}`);
+            params.push(endDate);
+        }
+        
+        const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+        // --- Step 2: Build the main query with JOIN and JSON aggregation ---
+        // This is much more efficient. It gets all orders and their items in a single database trip.
+        const mainQuery = `
+            SELECT 
+                o.*, 
+                COALESCE(
+                    (SELECT json_agg(oi.* ORDER BY oi.id ASC) FROM order_items oi WHERE oi.order_id = o.id),
+                    '[]'::json
+                ) as items
+            FROM orders o
+            ${whereSql}
+            ORDER BY o.created_at DESC
+            LIMIT $${paramIndex++} OFFSET $${paramIndex++}
+        `;
+        
+        const queryParams = [...params, Number(limit), (Number(page) - 1) * Number(limit)];
+        
+        // --- Step 3: Build the count query ---
+        const countQuery = `SELECT COUNT(*) as total FROM orders o ${whereSql}`;
+        const countParams = params; // Parameters for count query are the same filters
+
+
+        // --- Step 4: Execute both queries in parallel ---
         const [totalResult, ordersResult] = await Promise.all([
-            pgPool.query(countSql, params.slice(0, countSql.match(/\$/g)?.length || 0)),
-            pgPool.query(dataSql, params)
+            pgPool.query(countQuery, countParams),
+            pgPool.query(mainQuery, queryParams)
         ]);
+
         const total = parseInt(totalResult.rows[0].total, 10);
         const orders = ordersResult.rows;
-        const itemsStmt = 'SELECT * FROM order_items WHERE order_id = $1';
-        for (const order of orders) {
-            const itemsResult = await pgPool.query(itemsStmt, [order.id]);
-            order.items = itemsResult.rows;
-        }
+
         res.json({ orders, total });
+
     } catch (e) {
         console.error('Orders list error', e);
         res.status(500).json({ error: 'Failed to load orders' });
