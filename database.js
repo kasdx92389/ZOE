@@ -11,13 +11,10 @@ const localDbConfig = {
   ssl: false
 };
 
-// สำหรับการเชื่อมต่อบนเซิร์ฟเวอร์ (Production)
+// สำหรับการเชื่อมต่อบนเซิร์ฟเวอร์ (Production) - แก้ไขแล้ว
 const productionDbConfig = {
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
-  family: 4,
-  maxUses: 1, 
-  idleTimeoutMillis: 0, 
   connectionTimeoutMillis: 10000, 
 };
 

@@ -375,13 +375,28 @@ app.get('/api/orders', async (req, res) => {
             pgPool.query(countSql, params.slice(0, countSql.match(/\$/g)?.length || 0)),
             pgPool.query(dataSql, params)
         ]);
+
         const total = parseInt(totalResult.rows[0].total, 10);
         const orders = ordersResult.rows;
-        const itemsStmt = 'SELECT * FROM order_items WHERE order_id = $1';
-        for (const order of orders) {
-            const itemsResult = await pgPool.query(itemsStmt, [order.id]);
-            order.items = itemsResult.rows;
+
+        // แก้ไข: ลด N+1 Query โดยการดึง items ทั้งหมดในครั้งเดียว
+        if (orders.length > 0) {
+            const orderIds = orders.map(order => order.id);
+            const itemsResult = await pgPool.query('SELECT * FROM order_items WHERE order_id = ANY($1::int[])', [orderIds]);
+            
+            const itemsByOrderId = itemsResult.rows.reduce((acc, item) => {
+                if (!acc[item.order_id]) {
+                    acc[item.order_id] = [];
+                }
+                acc[item.order_id].push(item);
+                return acc;
+            }, {});
+
+            for (const order of orders) {
+                order.items = itemsByOrderId[order.id] || [];
+            }
         }
+
         res.json({ orders, total });
     } catch (e) {
         console.error('Orders list error', e);
