@@ -18,6 +18,7 @@ const MASTER_CODE = 'KESU-SECRET-2025';
 const saltRounds = 10;
 
 // --- build session conString forcing 5432 (เสถียรกว่า) + sslmode=require ---
+// (คงไว้ตามไฟล์เดิม แม้ไม่ได้ใช้ เพื่อไม่กระทบส่วนอื่น)
 function buildSessionConString() {
   const raw =
     (process.env.DATABASE_URL_POOLER && process.env.DATABASE_URL_POOLER.trim()) ||
@@ -36,7 +37,30 @@ function buildSessionConString() {
   }
   return url;
 }
-const SESSION_CONSTRING = buildSessionConString();
+const SESSION_CONSTRING = buildSessionConString(); // เดิม (ไม่ใช้แล้วใน session store ใหม่นี้)
+
+/* --------- เพิ่มฟังก์ชันใหม่: สร้าง conObject แบบแยก field และ SSL non-verify --------- */
+function buildSessionConObject() {
+  const raw =
+    (process.env.DATABASE_URL_POOLER && process.env.DATABASE_URL_POOLER.trim()) ||
+    (process.env.DATABASE_URL && process.env.DATABASE_URL.trim());
+  if (!raw) return undefined;
+  const u = new URL(raw);
+  const database = decodeURIComponent(u.pathname.replace(/^\//, ''));
+  return {
+    host: u.hostname,
+    port: 5432, // บังคับพอร์ต 5432 ให้เสถียร
+    user: decodeURIComponent(u.username),
+    password: decodeURIComponent(u.password),
+    database,
+    ssl: { rejectUnauthorized: false }, // สำคัญ: กัน self-signed cert
+    statement_timeout: 20_000,
+    query_timeout: 15_000,
+    connectionTimeoutMillis: 10_000,
+  };
+}
+const SESSION_CONOBJECT = buildSessionConObject();
+/* ------------------------------------------------------------------------- */
 
 // --- db helper (แปลง ? → $1) ---
 const db = {
@@ -65,22 +89,17 @@ async function loadUsers() {
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// session ก่อนทุก route  (อัปเดต: ใช้ conObject + SSL บังคับ)
+/* =========================
+ *  session ก่อนทุก route
+ *  (อัปเดตเฉพาะส่วนนี้: ใช้ conObject แบบแยก field + SSL non-verify)
+ * ========================= */
 const PgSession = PgSessionFactory(session);
 app.use(session({
   store: new PgSession({
-    ...(SESSION_CONSTRING
-      ? {
-          // ใช้ conObject เพื่อส่ง ssl เข้าไลบรารี pg โดยตรง (กัน ECONNREFUSED / ETIMEDOUT)
-          conObject: {
-            connectionString: SESSION_CONSTRING,
-            ssl: { require: true, rejectUnauthorized: false },
-          },
-        }
-      : {
-          // fallback: ใช้ proxy pool เดิม (เปิด SSL อยู่แล้ว)
-          pool: pgPool,
-        }),
+    ...(SESSION_CONOBJECT
+      ? { conObject: SESSION_CONOBJECT }        // ใช้ conObject ใหม่
+      : { pool: pgPool }                        // fallback
+    ),
     tableName: 'user_sessions',
     createTableIfMissing: true,
     pruneSessionInterval: 3600,
@@ -293,7 +312,7 @@ app.delete('/api/packages/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const r = await db.prepare('DELETE FROM packages WHERE id = ?').run(id);
-    if (r.rowCount === 0) return res.status(404).json({ error: 'Package not found' });
+  if (r.rowCount === 0) return res.status(404).json({ error: 'Package not found' });
     res.status(200).json({ message: 'Package deleted' });
   } catch (e) {
     console.error(`Error deleting package ${req.params.id}:`, e);
