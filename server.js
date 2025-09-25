@@ -1,3 +1,4 @@
+// server.js
 const express = require('express');
 const path = require('path');
 const session = require('express-session');
@@ -6,7 +7,8 @@ const pgPool = require('./database.js');
 const PgSession = require('connect-pg-simple')(session);
 
 const app = express();
-const PORT = 3000;
+// ใช้ PORT จาก Render ถ้ามี
+const PORT = process.env.PORT || 3000;
 
 app.set('trust proxy', 1);
 
@@ -74,6 +76,16 @@ app.use(session({
 }));
 
 app.use(express.static(path.join(__dirname, 'public')));
+
+// --- Health check (สำหรับ Render) ---
+app.get('/healthz', async (_req, res) => {
+  try {
+    await pgPool.query('select 1');
+    res.status(200).send('ok');
+  } catch (e) {
+    res.status(500).send('db down');
+  }
+});
 
 // ... (ส่วนของ Routes อื่นๆ เหมือนเดิมทุกประการ) ...
 const requireLogin = (req, res, next) => {
@@ -539,18 +551,11 @@ app.get('/api/orders/export/csv', async (req, res) => {
 });
 
 
-// --- Server Start ---
-app.listen(PORT, () => console.log(`Server is running at http://localhost:${PORT}`));
-/* ========================================================
- * Summary Page & API (Appended - non-breaking)
- * ====================================================== */
-
-// Admin Summary page (requires login)
+// --- Admin Summary page & API (เดิม) ---
 app.get('/admin/summary', requireLogin, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin-summary.html'));
 });
 
-// Helper: where-clause by Bangkok-local date
 function _buildSummaryWhere(startDate, endDate) {
   let whereSql = " WHERE 1=1";
   const params = [];
@@ -566,14 +571,11 @@ function _buildSummaryWhere(startDate, endDate) {
   return { whereSql, params };
 }
 
-// Aggregated Summary API
-// GET /api/summary?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
 app.get('/api/summary', async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     const { whereSql, params } = _buildSummaryWhere(startDate, endDate);
 
-    // Totals
     const totalsSql = `
       SELECT 
         COUNT(*)::int AS order_count,
@@ -583,7 +585,6 @@ app.get('/api/summary', async (req, res) => {
       FROM orders` + whereSql;
     const totalsRow = (await pgPool.query(totalsSql, params)).rows?.[0] || {};
 
-    // Daily series
     const dailySql = `
       SELECT 
         ((order_date::timestamptz) AT TIME ZONE 'Asia/Bangkok')::date AS day,
@@ -593,7 +594,6 @@ app.get('/api/summary', async (req, res) => {
       FROM orders` + whereSql + " GROUP BY 1 ORDER BY 1";
     const daily = (await pgPool.query(dailySql, params)).rows || [];
 
-    // Revenue by game (top 10)
     const whereJoin = whereSql.replace(/order_date/g, 'o.order_date');
     const byGameSql = `
       SELECT
@@ -608,7 +608,6 @@ app.get('/api/summary', async (req, res) => {
       LIMIT 10`;
     const byGame = (await pgPool.query(byGameSql, params)).rows || [];
 
-    // Revenue by platform
     const byPlatformSql = `
       SELECT 
         COALESCE(platform,'UNKNOWN') AS platform,
@@ -619,7 +618,6 @@ app.get('/api/summary', async (req, res) => {
       ORDER BY revenue DESC NULLS LAST`;
     const byPlatform = (await pgPool.query(byPlatformSql, params)).rows || [];
 
-    // Status distribution
     const byStatusSql = `
       SELECT 
         COALESCE(status,'UNKNOWN') AS status,
@@ -647,3 +645,44 @@ app.get('/api/summary', async (req, res) => {
     res.status(500).json({ error: 'Failed to load summary' });
   }
 });
+
+// ---- Startup: รอ DB พร้อมก่อนค่อยฟังพอร์ต (กัน fail ตอน DB งีบ/ตื่นช้า) ----
+async function waitForDb({ tries = 12, baseDelay = 1500, factor = 1.6 } = {}) {
+  let attempt = 0;
+  while (attempt < tries) {
+    attempt++;
+    try {
+      await pgPool.query('select 1');
+      console.log('✅ Database is reachable');
+      return;
+    } catch (err) {
+      const delay = Math.round(baseDelay * Math.pow(factor, attempt - 1));
+      console.warn(`DB not ready (try ${attempt}/${tries}): ${err.code || err.message}`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  throw new Error('Database not reachable after retries');
+}
+
+async function start() {
+  try {
+    await waitForDb();
+    app.listen(PORT, () => console.log(`Server is running at http://localhost:${PORT}`));
+  } catch (e) {
+    console.error('❌ Fatal: service cannot start', e.message);
+    process.exit(1);
+  }
+}
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('⏳ Shutting down...');
+  try { await pgPool.end(); } catch (_) {}
+  process.exit(0);
+});
+
+process.on('unhandledRejection', (err) => {
+  console.error('UnhandledRejection:', err);
+});
+
+start();
