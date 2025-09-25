@@ -183,15 +183,32 @@ app.post('/login', async (req, res) => {
 });
 
 app.post('/register', async (req, res) => {
-  const { username, password, master_code } = req.body;
-  if (master_code !== MASTER_CODE)
-    return res.redirect(`/register?error=${encodeURIComponent('รหัสโค้ดลับไม่ถูกต้อง.')}`);
-  if (users[username])
-    return res.redirect(`/register?error=${encodeURIComponent('Username นี้มีผู้ใช้งานแล้ว.')}`);
-  const hashed = await bcrypt.hash(password, saltRounds);
-  await db.prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)').run(username, hashed);
-  await loadUsers();
-  res.redirect(`/?success=${encodeURIComponent('สร้างบัญชีสำเร็จ!')}`);
+  const { username, password, secret } = req.body;
+  const start = Date.now();
+  try {
+    if (secret !== process.env.ADMIN_REG_SECRET) {
+      return res.status(401).json({ ok:false, error:'INVALID_SECRET' });
+    }
+    if (!username || !password) {
+      return res.status(400).json({ ok:false, error:'MISSING_FIELDS' });
+    }
+
+    // กันเครือข่ายช้า: เวลา query ใส่ statement_timeout (ถ้าตั้งที่ pool ได้อยู่แล้วข้ามได้)
+    const hash = await bcrypt.hash(password, 10);
+    await db.query(`insert into public.users (username, password_hash)
+                    values ($1,$2)
+                    on conflict (username) do update set password_hash = excluded.password_hash`,
+                    [username, hash]);
+
+    return res.status(201).json({ ok:true });
+  } catch (err) {
+    console.error('REGISTER_ERROR', { ms: Date.now()-start, err });
+    // ตอบกลับแทนการค้าง
+    if ((err.code||'').includes('ETIMEDOUT')) {
+      return res.status(503).json({ ok:false, error:'DB_TIMEOUT' });
+    }
+    return res.status(500).json({ ok:false, error:'SERVER_ERROR' });
+  }
 });
 
 app.get('/logout', (req, res) => req.session.destroy(() => res.redirect('/')));
