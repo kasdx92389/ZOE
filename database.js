@@ -1,9 +1,11 @@
 // database.js
-// "บังคับขั้นสุด" — มี failover 6543→5432, background re-probe, circuit-breaker, และ proxy ให้ใช้งานเหมือน pg.Pool
+// กันตาย: failover 6543→5432, background re-probe, circuit-breaker + proxy Pool
 const { Pool, Client } = require('pg');
 const { parse } = require('pg-connection-string');
 
-const isProd = process.env.NODE_ENV === 'production';
+const isProd =
+  (process.env.NODE_ENV || '').toLowerCase() === 'production';
+
 const BASE_CONN =
   (process.env.DATABASE_URL_POOLER && process.env.DATABASE_URL_POOLER.trim()) ||
   (process.env.DATABASE_URL && process.env.DATABASE_URL.trim()) ||
@@ -16,10 +18,11 @@ if (!BASE_CONN) {
 
 const parsed = parse(BASE_CONN);
 const looksSupabase =
-  /supabase\.co$/i.test(parsed.host || '') || /pooler\.supabase\.com$/i.test(parsed.host || '');
+  /supabase\.co$/i.test(parsed.host || '') ||
+  /pooler\.supabase\.com$/i.test(parsed.host || '');
 
-// --- สร้าง candidate endpoints (เรียงลำดับจากเหมาะสุด → รอง)
-// 1) 6543 (transaction pooler)  2) 5432 (session/direct)  3) พอร์ตที่มาจาก URL เดิม (กันกรณีพิเศษ)
+const forcePort = process.env.FORCE_DB_PORT && Number(process.env.FORCE_DB_PORT) || null;
+
 const baseCfg = {
   user: parsed.user,
   password: parsed.password,
@@ -31,27 +34,25 @@ const baseCfg = {
   query_timeout: 15_000,
   connectionTimeoutMillis: 10_000,
 };
+
 const seen = new Set();
 const candidates = [];
 function pushUnique(port) {
   const key = `${baseCfg.host}:${port}`;
   if (!seen.has(key)) { candidates.push({ ...baseCfg, port }); seen.add(key); }
 }
-if (looksSupabase) pushUnique(6543);
-pushUnique(5432);
-pushUnique(parsed.port ? Number(parsed.port) : 5432);
+
+if (forcePort) {
+  pushUnique(forcePort);
+} else {
+  if (looksSupabase) pushUnique(6543);
+  pushUnique(5432);
+  pushUnique(parsed.port ? Number(parsed.port) : 5432);
+}
 
 let currentPool = null;
 let currentLabel = '';
 let ready = false;
-let probing = false;
-
-const waiters = [];
-function notifyReady() { while (waiters.length) waiters.shift().resolve(); }
-function waitReady() {
-  if (ready && currentPool) return Promise.resolve();
-  return new Promise((resolve) => waiters.push({ resolve }));
-}
 
 async function probeOnce(cfg) {
   const label = `${cfg.host}:${cfg.port}`;
@@ -70,8 +71,8 @@ async function probeOnce(cfg) {
   }
 }
 
+let reprobeTimer = null;
 async function chooseAndConnect() {
-  probing = true;
   for (const cfg of candidates) {
     if (await probeOnce(cfg)) {
       const pool = new Pool({
@@ -83,48 +84,47 @@ async function chooseAndConnect() {
 
       pool.on('error', (err) => {
         console.error('⚠️  PG pool error:', err.code || err.message);
-        // กระตุ้นให้ re-probe แบบ background
         triggerReprobeSoon();
       });
 
-      // ปิดของเก่าถ้ามี
       if (currentPool) try { await currentPool.end(); } catch {}
-
       currentPool = pool;
       currentLabel = `${cfg.host}:${cfg.port}`;
       ready = true;
       console.log(`🔌 Using PRODUCTION DB via ${currentLabel} (SSL on, pool size=5)`);
-      notifyReady();
-      probing = false;
       return;
     }
   }
-  // ยังไม่ได้ → mark not ready แล้วค่อยลองใหม่
   ready = false;
-  probing = false;
   triggerReprobeSoon();
 }
 
-let reprobeTimer = null;
 function triggerReprobeSoon(delay = 5000) {
   if (reprobeTimer) return;
   reprobeTimer = setTimeout(async () => {
     reprobeTimer = null;
-    try { await chooseAndConnect(); } catch (e) { console.error('Reprobe failed:', e.message); triggerReprobeSoon(8000); }
+    try { await chooseAndConnect(); } catch (e) {
+      console.error('Reprobe failed:', e.message);
+      triggerReprobeSoon(8000);
+    }
   }, delay);
 }
 
-// เริ่มต้นครั้งแรก
 chooseAndConnect().catch((e) => {
   console.error('Initial connect failed:', e.message);
   triggerReprobeSoon();
 });
 
-// -------- Proxy Pool (หน้าตาเหมือน pg.Pool) --------
+// ---- Proxy pool with retries ----
+const waiters = [];
+function notifyReady() { while (waiters.length) waiters.shift().resolve(); }
+function waitReady() {
+  if (ready && currentPool) return Promise.resolve();
+  return new Promise((resolve) => waiters.push({ resolve }));
+}
 const transientCodes = new Set([
-  '57P01', // admin_shutdown
-  '57P02', '57P03',
-  'ECONNREFUSED', 'ETIMEDOUT', 'EHOSTUNREACH', 'EPIPE', 'ECONNRESET'
+  '57P01','57P02','57P03',
+  'ECONNREFUSED','ETIMEDOUT','EHOSTUNREACH','EPIPE','ECONNRESET'
 ]);
 async function runWithRetry(op, name = 'query') {
   const maxTries = 6;
@@ -132,7 +132,9 @@ async function runWithRetry(op, name = 'query') {
   for (;;) {
     try {
       await waitReady();
-      return await op();
+      const out = await op();
+      notifyReady();
+      return out;
     } catch (e) {
       const code = e.code || e.errno || e.message;
       const isTransient = transientCodes.has(code) || /timeout|terminated/i.test(String(code));
@@ -142,9 +144,9 @@ async function runWithRetry(op, name = 'query') {
         throw e;
       }
       console.warn(`↻ ${name} retry ${attempt}/${maxTries} due to ${code}`);
-      ready = false;                 // บังคับให้รอและ re-probe
+      ready = false;
       triggerReprobeSoon(1000 * attempt);
-      await waitReady();
+      await new Promise(r => setTimeout(r, 300 + 200 * attempt));
     }
   }
 }
@@ -155,18 +157,14 @@ const proxyPool = {
   },
   async connect() {
     await waitReady();
-    // ห่อ client.query ด้วย retry ทีละคำสั่ง (เน้นตอนใช้ transaction)
     const client = await currentPool.connect();
     const origQuery = client.query.bind(client);
-    client.query = (text, params) =>
-      runWithRetry(() => origQuery(text, params), 'client.query');
+    client.query = (text, params) => runWithRetry(() => origQuery(text, params), 'client.query');
     const origRelease = client.release.bind(client);
     client.release = (...a) => { try { origRelease(...a); } catch {} };
     return client;
   },
-  async end() {
-    if (currentPool) try { await currentPool.end(); } catch {}
-  },
+  async end() { if (currentPool) try { await currentPool.end(); } catch {} },
 };
 
 module.exports = proxyPool;
