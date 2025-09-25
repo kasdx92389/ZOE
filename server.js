@@ -1,37 +1,37 @@
-const express = require('express');
-const path = require('path');
-const session = require('express-session');
-const bcrypt = require('bcrypt');
-const pgPool = require('./database.js');
+// --- Imports (เปลี่ยนจาก require ทั้งหมด) ---
+import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import session from 'express-session';
+import bcrypt from 'bcrypt';
+import pgPool from './database.js';
+import { createClient } from 'redis';
+import { RedisStore } from 'connect-redis';
 
-const { createClient } = require('redis');
-// --- ใช้โค้ดบรรทัดนี้ ซึ่งถูกต้องตาม Document ที่สุด ---
-const RedisStore = require('connect-redis').default;
+// --- ตั้งค่า __dirname สำหรับ ES Modules ---
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = 3000;
 
-// --- เพิ่มเข้ามา: การตั้งค่า Redis Client ---
+// --- การตั้งค่า Redis Client ---
 const isProduction = process.env.NODE_ENV === 'production';
 let redisClient;
 
 if (isProduction) {
-  // บน Production (เช่น Render) ให้ใช้ REDIS_URL ที่ service เตรียมให้
-  // **สำคัญ:** คุณต้องตั้งค่า Environment Variable ชื่อ REDIS_URL บน Hosting ของคุณ
   redisClient = createClient({ url: process.env.REDIS_URL });
 } else {
-  // บนเครื่อง Local ของเรา (ต้องติดตั้งและรัน Redis Server)
   redisClient = createClient();
 }
-
 redisClient.on('error', err => console.log('Redis Client Error', err));
 redisClient.connect().catch(console.error);
 console.log(isProduction ? "Connecting to external Redis for session storage..." : "Connecting to local Redis for session storage...");
 
-// Initialize Redis store.
+// Initialize Redis store
 const redisStore = new RedisStore({
   client: redisClient,
-  prefix: 'webapp-sess:', // ตั้งชื่อ prefix เพื่อไม่ให้ข้อมูล session ชนกับข้อมูลอื่น
+  prefix: 'webapp-sess:',
 });
 
 app.set('trust proxy', 1);
@@ -40,41 +40,40 @@ app.set('trust proxy', 1);
 const MASTER_CODE = 'KESU-SECRET-2025';
 const saltRounds = 10;
 
-// --- Database wrapper (อัปเกรด transaction helper) ---
+// --- Database wrapper (เหมือนเดิม) ---
 const db = {
-    prepare: (sql) => {
-        let paramIndex = 1;
-        const pgSql = sql.replace(/\?/g, () => `$${paramIndex++}`);
-        return {
-            get: async (...params) => {
-                const res = await pgPool.query(pgSql, params);
-                return res.rows[0];
-            },
-            all: async (...params) => {
-                const res = await pgPool.query(pgSql, params);
-                return res.rows;
-            },
-            run: async (...params) => {
-                return await pgPool.query(pgSql, params);
-            }
-        }
-    },
-    exec: async (sql) => await pgPool.query(sql),
-    // --- NEW: อัปเกรดฟังก์ชัน transaction ---
-    transaction: async (callback) => {
-        const client = await pgPool.connect();
-        try {
-            await client.query('BEGIN');
-            const result = await callback(client); // ส่ง client เข้าไปใน callback
-            await client.query('COMMIT');
-            return result;
-        } catch (error) {
-            await client.query('ROLLBACK');
-            throw error; // ส่ง error ต่อเพื่อให้ route handler จัดการ
-        } finally {
-            client.release();
+  prepare: (sql) => {
+    let paramIndex = 1;
+    const pgSql = sql.replace(/\?/g, () => `$${paramIndex++}`);
+    return {
+        get: async (...params) => {
+            const res = await pgPool.query(pgSql, params);
+            return res.rows[0];
+        },
+        all: async (...params) => {
+            const res = await pgPool.query(pgSql, params);
+            return res.rows;
+        },
+        run: async (...params) => {
+            return await pgPool.query(pgSql, params);
         }
     }
+  },
+  exec: async (sql) => await pgPool.query(sql),
+  transaction: async (callback) => {
+    const client = await pgPool.connect();
+    try {
+        await client.query('BEGIN');
+        const result = await callback(client);
+        await client.query('COMMIT');
+        return result;
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
+  }
 };
 
 // --- โหลดข้อมูลผู้ใช้ ---
@@ -97,22 +96,25 @@ loadUsers();
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// --- Session configuration (เปลี่ยนมาใช้ RedisStore) ---
+// --- Session configuration ---
 app.use(session({
-    store: redisStore, // <--- ใช้ RedisStore
+    store: redisStore,
     secret: 'a-very-secret-key-for-your-session-12345',
     resave: false,
     saveUninitialized: false,
     cookie: {
         maxAge: 30 * 24 * 60 * 60 * 1000,
-        secure: process.env.NODE_ENV === 'production',
+        secure: isProduction,
         httpOnly: true
     }
 }));
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- Routes (ส่วนนี้เหมือนเดิม) ---
+
+// --- Routes (เหมือนเดิมทุกประการ) ---
+// ... (คัดลอกส่วน Routes ทั้งหมดจากไฟล์ server.js เดิมของคุณมาวางที่นี่) ...
+// ... ตั้งแต่ const requireLogin = ... จนถึง ... app.get('/api/summary', ...);
 const requireLogin = (req, res, next) => {
     if (req.session.userId) {
         next();
@@ -120,7 +122,6 @@ const requireLogin = (req, res, next) => {
         res.redirect('/');
     }
 };
-
 app.get('/', (req, res) => {
     if (req.session.userId) {
         res.redirect('/admin/home');
@@ -128,15 +129,12 @@ app.get('/', (req, res) => {
         res.sendFile(path.join(__dirname, 'public', 'index.html')); 
     }
 });
-
 app.get('/register', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin-register.html'));
 });
-
 app.get('/terms', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'terms.html'));
 });
-
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
     const userHash = users[username];
@@ -146,7 +144,6 @@ app.post('/login', async (req, res) => {
     }
     res.redirect(`/?error=${encodeURIComponent('Username หรือ Password ไม่ถูกต้อง')}`);
 });
-
 app.post('/register', async (req, res) => {
     const { username, password, master_code } = req.body;
     if (master_code !== MASTER_CODE) return res.redirect(`/register?error=${encodeURIComponent('รหัสโค้ดลับไม่ถูกต้อง.')}`);
@@ -159,7 +156,6 @@ app.post('/register', async (req, res) => {
     await loadUsers();
     res.redirect(`/?success=${encodeURIComponent('สร้างบัญชีสำเร็จ!')}`);
 });
-
 app.get('/logout', (req, res) => {
     req.session.destroy(err => {
         if (err) {
@@ -168,15 +164,12 @@ app.get('/logout', (req, res) => {
         res.redirect('/');
     });
 });
-
 app.get('/admin/home', requireLogin, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'homepage.html'));
 });
-
 app.get('/admin/dashboard', requireLogin, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin-dashboard.html'));
 });
-
 app.get('/admin/packages', requireLogin, (req, res) => {
     if (req.query.game) {
         res.sendFile(path.join(__dirname, 'public', 'package-management.html'));
@@ -187,9 +180,7 @@ app.get('/admin/packages', requireLogin, (req, res) => {
 app.get('/admin/zoe-management', requireLogin, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'order-management.html'));
 });
-
 app.use('/api', requireLogin);
-
 // --- General Data API ---
 app.get('/api/dashboard-data', async (req, res) => {
     try {
@@ -231,7 +222,6 @@ app.get('/api/dashboard-data', async (req, res) => {
         res.status(500).json({ error: 'Failed to retrieve dashboard data' });
     }
 });
-
 // --- Game Order API ---
 app.get('/api/games/order', async (req, res) => {
     try {
@@ -246,7 +236,6 @@ app.get('/api/games/order', async (req, res) => {
         res.status(500).json({ error: 'Failed to retrieve game order' });
     }
 });
-
 app.post('/api/games/order', async (req, res) => {
     try {
         const { gameOrder } = req.body;
@@ -261,8 +250,6 @@ app.post('/api/games/order', async (req, res) => {
         res.status(500).json({ error: 'Failed to save game order' });
     }
 });
-
-
 // --- Packages API ---
 app.post('/api/packages', async (req, res) => {
     try {
@@ -274,7 +261,6 @@ app.post('/api/packages', async (req, res) => {
         res.status(500).json({ error: 'Failed to create package' });
     }
 });
-
 app.put('/api/packages/:id', async (req, res) => {
     try {
         const { id } = req.params;
@@ -287,7 +273,6 @@ app.put('/api/packages/:id', async (req, res) => {
         res.status(500).json({ error: 'Failed to update package' });
     }
 });
-
 app.delete('/api/packages/:id', async (req, res) => {
     try {
         const { id } = req.params;
@@ -299,8 +284,6 @@ app.delete('/api/packages/:id', async (req, res) => {
         res.status(500).json({ error: 'Failed to delete package' });
     }
 });
-
-// --- ปรับปรุง: ใช้ db.transaction ---
 app.post('/api/packages/order', async (req, res) => {
     const { order } = req.body;
     if (!Array.isArray(order)) return res.status(400).json({ error: 'Invalid order data' });
@@ -317,8 +300,6 @@ app.post('/api/packages/order', async (req, res) => {
         res.status(500).json({ error: 'Failed to update package order' });
     }
 });
-
-// --- ปรับปรุง: ใช้ db.transaction ---
 app.post('/api/packages/bulk-actions', async (req, res) => {
     const { action, ids, updates } = req.body;
     if (!action || !Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'Invalid request' });
@@ -348,10 +329,7 @@ app.post('/api/packages/bulk-actions', async (req, res) => {
         res.status(500).json({ error: 'Failed to perform bulk action' });
     }
 });
-
-
 // --- Orders API ---
-
 function buildOrdersQuery(queryParams) {
     const { q = '', status = '', platform = '', startDate, endDate, page = 1, limit = 20 } = queryParams;
     
@@ -390,7 +368,6 @@ function buildOrdersQuery(queryParams) {
 
     return { dataSql, countSql, params };
 }
-
 app.get('/api/orders', async (req, res) => {
     try {
         const { dataSql, countSql, params } = buildOrdersQuery(req.query);
@@ -411,7 +388,6 @@ app.get('/api/orders', async (req, res) => {
         res.status(500).json({ error: 'Failed to load orders' });
     }
 });
-
 function genOrderNumber() {
     const d = new Date();
     const y = d.getFullYear();
@@ -420,8 +396,6 @@ function genOrderNumber() {
     const seq = Math.floor(Math.random() * 9000) + 1000;
     return `ODR-${y}${m}${day}-${seq}`;
 }
-
-// --- ปรับปรุง: ใช้ db.transaction ---
 app.post('/api/orders', async (req, res) => {
     const b = req.body;
     try {
@@ -453,8 +427,6 @@ app.post('/api/orders', async (req, res) => {
         res.status(500).json({ error: 'Failed to create order' });
     }
 });
-
-// --- ปรับปรุง: ใช้ db.transaction ---
 app.put('/api/orders/:orderNumber', async (req, res) => {
     const { orderNumber } = req.params;
     const b = req.body;
@@ -489,8 +461,6 @@ app.put('/api/orders/:orderNumber', async (req, res) => {
         res.status(500).json({ error: 'Failed to update order' });
     }
 });
-
-
 app.delete('/api/orders/:orderNumber', async (req, res) => {
     const { orderNumber } = req.params;
     try {
@@ -502,8 +472,6 @@ app.delete('/api/orders/:orderNumber', async (req, res) => {
         res.status(500).json({ error: 'Failed to delete order' });
     }
 });
-
-
 app.get('/api/orders/export/csv', async (req, res) => {
     try {
         const queryParams = { ...req.query, limit: null }; 
@@ -560,20 +528,15 @@ app.get('/api/orders/export/csv', async (req, res) => {
         res.status(500).send('Failed to export orders.');
     }
 });
-
-
 // --- Server Start ---
 app.listen(PORT, () => console.log(`Server is running at http://localhost:${PORT}`));
-
 /* ========================================================
  * Summary Page & API (Appended - non-breaking)
  * ====================================================== */
-
 // Admin Summary page (requires login)
 app.get('/admin/summary', requireLogin, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin-summary.html'));
 });
-
 // Helper: where-clause by Bangkok-local date
 function _buildSummaryWhere(startDate, endDate) {
   let whereSql = " WHERE 1=1";
@@ -589,7 +552,6 @@ function _buildSummaryWhere(startDate, endDate) {
   }
   return { whereSql, params };
 }
-
 // Aggregated Summary API
 // GET /api/summary?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
 app.get('/api/summary', async (req, res) => {
