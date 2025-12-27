@@ -458,13 +458,14 @@ function renderOrders(orders, total) {
       // 2. ดึงข้อความจากคลิปบอร์ดโดยตรง
       const pastedText = (e.clipboardData || window.clipboardData).getData('text');
 
-      // 3. ใช้ Regex ตรวจสอบข้อความที่ได้มา
-      const regex = /วันที่:\s*(\d{2})\/(\d{2})\/(\d{4})\s*เวลา:\s*(\d{2}):(\d{2}):(\d{2})/;
+      // 3. ใช้ Regex ตรวจสอบข้อความที่ได้มา (รองรับทั้ง HH:MM:SS และ HH:MM)
+      const regex = /วันที่:\s*(\d{2})\/(\d{2})\/(\d{4})\s*เวลา:\s*(\d{2}):(\d{2})(?::(\d{2}))?/;
       const match = pastedText.match(regex);
 
       // 4. ถ้าตรงตามรูปแบบ ให้แปลงและใส่ค่าลงในช่อง input
       if (match) {
-        const [, day, month, year, hour, minute, second] = match;
+        let [, day, month, year, hour, minute, second] = match;
+        if (!second) second = '00';
         const formattedDateTime = `${year}-${month}-${day}T${hour}:${minute}:${second}`;
         e.target.value = formattedDateTime;
       }
