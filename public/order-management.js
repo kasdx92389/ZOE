@@ -1,4 +1,4 @@
-(function() {
+(function () {
   const state = {
     packages: [],
     games: [],
@@ -33,23 +33,23 @@
     const maxPagesToShow = 5;
     let startPage, endPage;
     if (totalPages <= maxPagesToShow) {
-        startPage = 1; endPage = totalPages;
+      startPage = 1; endPage = totalPages;
     } else {
-        const maxPagesBeforeCurrent = Math.floor(maxPagesToShow / 2);
-        const maxPagesAfterCurrent = Math.ceil(maxPagesToShow / 2) - 1;
-        if (state.currentPage <= maxPagesBeforeCurrent) {
-            startPage = 1; endPage = maxPagesToShow;
-        } else if (state.currentPage + maxPagesAfterCurrent >= totalPages) {
-            startPage = totalPages - maxPagesToShow + 1; endPage = totalPages;
-        } else {
-            startPage = state.currentPage - maxPagesBeforeCurrent;
-            endPage = state.currentPage + maxPagesAfterCurrent;
-        }
+      const maxPagesBeforeCurrent = Math.floor(maxPagesToShow / 2);
+      const maxPagesAfterCurrent = Math.ceil(maxPagesToShow / 2) - 1;
+      if (state.currentPage <= maxPagesBeforeCurrent) {
+        startPage = 1; endPage = maxPagesToShow;
+      } else if (state.currentPage + maxPagesAfterCurrent >= totalPages) {
+        startPage = totalPages - maxPagesToShow + 1; endPage = totalPages;
+      } else {
+        startPage = state.currentPage - maxPagesBeforeCurrent;
+        endPage = state.currentPage + maxPagesAfterCurrent;
+      }
     }
 
     if (startPage > 1) buttonsHtml += `<button data-page="1">1</button><button disabled>...</button>`;
     for (let i = startPage; i <= endPage; i++) {
-        buttonsHtml += `<button data-page="${i}" class="${i === state.currentPage ? 'active' : ''}">${i}</button>`;
+      buttonsHtml += `<button data-page="${i}" class="${i === state.currentPage ? 'active' : ''}">${i}</button>`;
     }
     if (endPage < totalPages) buttonsHtml += `<button disabled>...</button><button data-page="${totalPages}">${totalPages}</button>`;
 
@@ -58,20 +58,20 @@
   }
 
   function handlePaginationClick(e) {
-      const target = e.target.closest('button');
-      if (!target || target.disabled) return;
-      
-      let newPage = state.currentPage;
+    const target = e.target.closest('button');
+    if (!target || target.disabled) return;
 
-      if (target.id === 'prev-page') newPage--;
-      else if (target.id === 'next-page') newPage++;
-      else if (target.dataset.page) newPage = Number(target.dataset.page);
-      else return;
-      
-      if (newPage !== state.currentPage) {
-          state.currentPage = newPage;
-          refreshOrders();
-      }
+    let newPage = state.currentPage;
+
+    if (target.id === 'prev-page') newPage--;
+    else if (target.id === 'next-page') newPage++;
+    else if (target.dataset.page) newPage = Number(target.dataset.page);
+    else return;
+
+    if (newPage !== state.currentPage) {
+      state.currentPage = newPage;
+      refreshOrders();
+    }
   }
 
   const dialog = {
@@ -94,7 +94,7 @@
   function showCustomConfirm(message, title = 'ยืนยันการกระทำ') {
     return new Promise(resolve => {
       dialog.title.textContent = title;
-      dialog.message.innerHTML = message; 
+      dialog.message.innerHTML = message;
       dialog.buttons.innerHTML = `
         <button class="btn" id="dialog-cancel">ยกเลิก</button>
         <button class="btn primary" id="dialog-confirm">ยืนยัน</button>
@@ -138,8 +138,15 @@
 
     // Set default value to current local date and time
     const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); // Adjust for local timezone
-    el('order-date').value = now.toISOString().slice(0, 19);
+    // Adjust for default local timezone string is a bit tricky, simpler to just use local parts
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const h = String(now.getHours()).padStart(2, '0');
+    const min = String(now.getMinutes()).padStart(2, '0');
+
+    el('order-date-date').value = `${y}-${m}-${d}`;
+    el('order-date-time').value = `${h}:${min}`;
 
     state.items = [];
     fillSelect(el('platform'), state.validPlatforms, '— เลือกแพลตฟอร์ม —');
@@ -164,7 +171,7 @@
         </td>
       </tr>`;
     }).join('');
-    
+
     if (recalculate) {
       updateTotals();
     } else {
@@ -172,25 +179,25 @@
     }
   }
 
-function renderOrders(orders, total) {
-  state.allOrders = orders;
-  const tb = qs('#orders-table tbody');
-  tb.innerHTML = ''; // Clear existing rows
+  function renderOrders(orders, total) {
+    state.allOrders = orders;
+    const tb = qs('#orders-table tbody');
+    tb.innerHTML = ''; // Clear existing rows
 
-  (orders || []).forEach(o => {
-    const tr = document.createElement('tr');
-    tr.dataset.id = o.order_number;
-    tr.className = 'interactive-row';
+    (orders || []).forEach(o => {
+      const tr = document.createElement('tr');
+      tr.dataset.id = o.order_number;
+      tr.className = 'interactive-row';
 
-    const formattedDateTime = o.order_date
-      ? new Date(o.order_date).toLocaleString('sv-SE', {
+      const formattedDateTime = o.order_date
+        ? new Date(o.order_date).toLocaleString('sv-SE', {
           year: 'numeric', month: '2-digit', day: '2-digit',
           hour: '2-digit', minute: '2-digit'
         })
-      : '';
+        : '';
 
-    // Create and append cells one by one
-    tr.innerHTML = `
+      // Create and append cells one by one
+      tr.innerHTML = `
       <td class="key-data">${o.order_number}</td>
       <td>${formattedDateTime}</td>
       <td>${o.customer_name || ''}</td>
@@ -204,11 +211,11 @@ function renderOrders(orders, total) {
         </button>
       </td>
     `;
-    tb.appendChild(tr);
-  });
+      tb.appendChild(tr);
+    });
 
-  renderPagination(total);
-}
+    renderPagination(total);
+  }
 
   function calcProfit() {
     const total = Number(el('total-paid').value || 0);
@@ -237,39 +244,39 @@ function renderOrders(orders, total) {
     }
     sel.value = value;
   }
-  
+
   function refillPackageOptions() {
-  const gameSelect = el('game-select');
-  const packageSelect = el('add-item-package');
-  const game = gameSelect.value;
-  const isEditMode = el('order-form').dataset.mode === 'edit';
+    const gameSelect = el('game-select');
+    const packageSelect = el('add-item-package');
+    const game = gameSelect.value;
+    const isEditMode = el('order-form').dataset.mode === 'edit';
 
-  // ส่วนของการเติม Package ยังทำงานเหมือนเดิม
-  packageSelect.disabled = !game;
-  const gameSpecificPackages = game ? state.packages.filter(p => p.game_association === game) : [];
+    // ส่วนของการเติม Package ยังทำงานเหมือนเดิม
+    packageSelect.disabled = !game;
+    const gameSpecificPackages = game ? state.packages.filter(p => p.game_association === game) : [];
 
-  packageSelect.innerHTML = '<option value="">— เลือกแพ็กเกจ —</option>' + gameSpecificPackages.map(p => {
-    const label = `${p.name} (${p.product_code || 'N/A'})`;
-    return `<option value="${p.id}" data-price="${p.price || 0}" data-type="${p.type || ''}" data-channel="${p.channel || ''}">${label}</option>`;
-  }).join('');
+    packageSelect.innerHTML = '<option value="">— เลือกแพ็กเกจ —</option>' + gameSpecificPackages.map(p => {
+      const label = `${p.name} (${p.product_code || 'N/A'})`;
+      return `<option value="${p.id}" data-price="${p.price || 0}" data-type="${p.type || ''}" data-channel="${p.channel || ''}">${label}</option>`;
+    }).join('');
 
-  // ++ REVISED LOGIC FOR TOPUP CHANNEL ++
-  let availableChannels;
-  if (isEditMode) {
-    // ถ้าเป็นโหมดแก้ไข: ดึง "ช่องทาง" ที่มีทั้งหมดจากทุกแพ็กเกจ
-    availableChannels = uniq(state.packages.map(p => p.channel));
-  } else {
-    // ถ้าเป็นโหมดสร้างใหม่: ดึง "ช่องทาง" เฉพาะของเกมที่เลือก
-    availableChannels = uniq(gameSpecificPackages.map(p => p.channel));
+    // ++ REVISED LOGIC FOR TOPUP CHANNEL ++
+    let availableChannels;
+    if (isEditMode) {
+      // ถ้าเป็นโหมดแก้ไข: ดึง "ช่องทาง" ที่มีทั้งหมดจากทุกแพ็กเกจ
+      availableChannels = uniq(state.packages.map(p => p.channel));
+    } else {
+      // ถ้าเป็นโหมดสร้างใหม่: ดึง "ช่องทาง" เฉพาะของเกมที่เลือก
+      availableChannels = uniq(gameSpecificPackages.map(p => p.channel));
+    }
+    fillSelect(el('topup-channel'), availableChannels, '— เลือกช่องทาง —');
   }
-  fillSelect(el('topup-channel'), availableChannels, '— เลือกช่องทาง —');
-}
 
   async function loadInitialData() {
     const params = getCurrentFilters();
     const [dashRes, ordersRes] = await Promise.all([
-        fetch('/api/dashboard-data'),
-        fetch(`/api/orders?${params.toString()}`)
+      fetch('/api/dashboard-data'),
+      fetch(`/api/orders?${params.toString()}`)
     ]);
     const dashData = await dashRes.json();
     const ordersData = await ordersRes.json();
@@ -288,7 +295,7 @@ function renderOrders(orders, total) {
     refillPackageOptions();
     renderOrders(ordersData.orders || [], ordersData.total || 0);
   }
-  
+
   function getCurrentFilters() {
     const params = new URLSearchParams();
     const q = el('search-q').value.trim();
@@ -296,7 +303,7 @@ function renderOrders(orders, total) {
     const platform = el('filter-platform').value;
     const startDate = el('filter-start-date').value;
     const endDate = el('filter-end-date').value;
-    
+
     params.set('page', state.currentPage);
     params.set('limit', state.rowsPerPage);
 
@@ -305,19 +312,19 @@ function renderOrders(orders, total) {
     if (platform) params.set('platform', platform);
     if (startDate) params.set('startDate', startDate);
     if (endDate) params.set('endDate', endDate);
-    
+
     return params;
   }
 
   async function refreshOrders() {
     const params = getCurrentFilters();
     const url = `/api/orders?${params.toString()}`;
-    
+
     const res = await fetch(url);
     const data = await res.json();
     renderOrders(data.orders || [], data.total || 0);
   }
-  
+
   async function showOrderConfirmation() {
     if (!el('game-select').value) { return showCustomAlert('กรุณาเลือกเกม'); }
     if (!state.items.length) { return showCustomAlert('กรุณาเพิ่มรายการแพ็กเกจอย่างน้อย 1 รายการ'); }
@@ -355,8 +362,28 @@ function renderOrders(orders, total) {
   }
 
   async function saveOrder() {
+    const datePart = el('order-date-date').value;
+    const timePart = el('order-date-time').value || '00:00';
+    let isoDate = new Date().toISOString();
+
+    if (datePart) {
+      // Construct ISO string from local inputs
+      // Note: We want to store exactly what the user entered as "local time"
+      // But the backend likely expects an ISO string.
+      // Let's create a date object from the inputs treated as local
+      const combined = new Date(`${datePart}T${timePart}:00`);
+      // If it's valid:
+      if (!isNaN(combined.getTime())) {
+        // Determine timezone offset in minutes and adjust to get the correct UTC ISO
+        // Actually, the previous code did: new Date(el('order-date').value).toISOString()
+        // 'datetime-local' value is YYYY-MM-DDTHH:MM. new Date() on that parses it as local time.
+        // So we just need to do the same.
+        isoDate = combined.toISOString();
+      }
+    }
+
     const body = {
-      order_date: el('order-date').value ? new Date(el('order-date').value).toISOString() : new Date().toISOString(),
+      order_date: isoDate,
       platform: el('platform').value,
       customer_name: el('customer-name').value.trim(),
       game_name: el('game-select').value,
@@ -387,7 +414,7 @@ function renderOrders(orders, total) {
 
     const out = await res.json();
     el('save-result').textContent = isUpdating ? `อัปเดต ${out.order_number} สำเร็จ` : `บันทึกแล้ว: ${out.order_number}`;
-    
+
     state.currentPage = 1; // กลับไปหน้าแรกทุกครั้งที่ save สำเร็จ
     await refreshOrders();
     setTimeout(() => resetForm(), 1000);
@@ -402,7 +429,7 @@ function renderOrders(orders, total) {
     if (!res.ok) {
       return showCustomAlert(`เกิดข้อผิดพลาด: ไม่สามารถลบออเดอร์ ${orderId} ได้`, 'เกิดข้อผิดพลาด');
     }
-    
+
     showCustomAlert(`ออเดอร์ ${orderId} ถูกลบแล้ว`, 'ลบสำเร็จ');
     if (state.editingOrderId === orderId) {
       resetForm();
@@ -413,18 +440,25 @@ function renderOrders(orders, total) {
   function loadOrderIntoForm(orderId) {
     const orderData = state.allOrders.find(o => o.order_number === orderId);
     if (!orderData) return;
-    
+
     updateFormUI('edit', orderData);
-    
+
     if (orderData.order_date) {
-        const localDate = new Date(orderData.order_date);
-        localDate.setMinutes(localDate.getMinutes() - localDate.getTimezoneOffset());
-        el('order-date').value = localDate.toISOString().slice(0, 19);
+      const localDate = new Date(orderData.order_date);
+
+      const y = localDate.getFullYear();
+      const m = String(localDate.getMonth() + 1).padStart(2, '0');
+      const d = String(localDate.getDate()).padStart(2, '0');
+      const h = String(localDate.getHours()).padStart(2, '0');
+      const min = String(localDate.getMinutes()).padStart(2, '0');
+
+      el('order-date-date').value = `${y}-${m}-${d}`;
+      el('order-date-time').value = `${h}:${min}`;
     }
-    
+
     setIfExists(el('game-select'), orderData.game_name);
     refillPackageOptions();
-    
+
     setIfExists(el('platform'), orderData.platform);
     setIfExists(el('topup-channel'), orderData.topup_channel);
     setIfExists(el('operator'), orderData.operator);
@@ -438,20 +472,20 @@ function renderOrders(orders, total) {
     // จัดลำดับใหม่: ดึงค่าที่บันทึกไว้มาก่อน
     el('total-paid').value = orderData.total_paid?.toFixed(2) || '0.00';
     el('cost').value = orderData.cost?.toFixed(2) || '0.00';
-    
-    state.items = orderData.items || []; 
+
+    state.items = orderData.items || [];
 
     // สั่ง render โดยไม่ให้คำนวณยอดรวมใหม่
     renderItems(false);
-    
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   document.addEventListener('DOMContentLoaded', () => {
     resetForm();
-    
+
     // ++ REVISED: Auto-parses pasted date-time string using 'paste' event ++
-    el('order-date').addEventListener('paste', e => {
+    const handlePasteDate = (e) => {
       // 1. ป้องกันไม่ให้บราวเซอร์วางข้อความตามปกติ
       e.preventDefault();
 
@@ -464,12 +498,17 @@ function renderOrders(orders, total) {
 
       // 4. ถ้าตรงตามรูปแบบ ให้แปลงและใส่ค่าลงในช่อง input
       if (match) {
-        let [, day, month, year, hour, minute, second] = match;
-        if (!second) second = '00';
-        const formattedDateTime = `${year}-${month}-${day}T${hour}:${minute}:${second}`;
-        e.target.value = formattedDateTime;
+        let [, day, month, year, hour, minute] = match; // second is ignored for input type=time usually unless step is set
+        // Adjust year if needed (e.g. if buddhist year 2567 -> 2024? assuming standard AD for now or user handles it)
+        // Regex matches strictly what is there.
+
+        el('order-date-date').value = `${year}-${month}-${day}`;
+        el('order-date-time').value = `${hour}:${minute}`;
       }
-    });
+    };
+
+    el('order-date-date').addEventListener('paste', handlePasteDate);
+    el('order-date-time').addEventListener('paste', handlePasteDate);
 
     // 1. สร้าง object ของวันที่สำหรับวันนี้และ 7 วันก่อน
     const endDate = new Date();
@@ -490,19 +529,19 @@ function renderOrders(orders, total) {
     loadInitialData();
 
     el('game-select').addEventListener('change', refillPackageOptions);
-    
+
     el('add-item-package').addEventListener('change', e => {
       const opt = e.target.selectedOptions[0];
       if (!opt || !opt.value) return;
       el('add-item-unit').value = opt.dataset.price || '0';
       setIfExists(el('topup-channel'), opt.dataset.channel);
     });
-    
+
     el('btn-add-item').addEventListener('click', () => {
       const pkgSelect = el('add-item-package');
       const opt = pkgSelect.selectedOptions[0];
       if (!opt || !opt.value) { return showCustomAlert('กรุณาเลือกแพ็กเกจ'); }
-      
+
       const id = Number(opt.value);
       const pkg = state.packages.find(p => p.id === id);
       const qty = Math.max(1, Number(el('add-item-qty').value || 1));
@@ -514,7 +553,7 @@ function renderOrders(orders, total) {
       el('add-item-qty').value = '1';
       el('add-item-unit').value = '';
     });
-    
+
     qs('#items-table').addEventListener('click', e => {
       const btn = e.target.closest('[data-rm-idx]');
       if (!btn) return;
@@ -523,68 +562,68 @@ function renderOrders(orders, total) {
     });
 
     el('order-form').addEventListener('submit', (e) => {
-        e.preventDefault();
-        showOrderConfirmation();
+      e.preventDefault();
+      showOrderConfirmation();
     });
-    
+
     el('cost').addEventListener('input', calcProfit);
     el('total-paid').addEventListener('input', calcProfit);
-    
+
     const exportBtn = el('btn-export-csv');
     if (exportBtn) {
-        exportBtn.addEventListener('click', async () => {
-            const originalBtnContent = exportBtn.innerHTML;
-            exportBtn.innerHTML = `<span><svg class="btn-spinner" viewBox="0 0 50 50"><circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="5"></circle></svg> Processing...</span>`;
-            exportBtn.disabled = true;
+      exportBtn.addEventListener('click', async () => {
+        const originalBtnContent = exportBtn.innerHTML;
+        exportBtn.innerHTML = `<span><svg class="btn-spinner" viewBox="0 0 50 50"><circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="5"></circle></svg> Processing...</span>`;
+        exportBtn.disabled = true;
 
-            try {
-                const params = getCurrentFilters();
-                const res = await fetch(`/api/orders/export/csv?${params.toString()}`);
+        try {
+          const params = getCurrentFilters();
+          const res = await fetch(`/api/orders/export/csv?${params.toString()}`);
 
-                if (res.ok) {
-                    const blob = await res.blob();
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.style.display = 'none';
-                    a.href = url;
-                    
-                    const disposition = res.headers.get('content-disposition');
-                    let filename = `orders-export.csv`;
-                    if (disposition && disposition.includes('attachment')) {
-                        const matches = /filename="([^"]+)"/.exec(disposition);
-                        if (matches && matches[1]) filename = matches[1];
-                    }
-                    
-                    a.download = filename;
-                    document.body.appendChild(a);
-                    a.click();
-                    window.URL.revokeObjectURL(url);
-                    a.remove();
-                } else {
-                    const errorMsg = await res.text();
-                    showCustomAlert(errorMsg || 'ไม่มีข้อมูลออเดอร์ให้ Export', 'แจ้งเตือน');
-                }
-            } catch (err) {
-                console.error("CSV Export failed:", err);
-                showCustomAlert('การ Export ล้มเหลว กรุณาลองใหม่อีกครั้ง', 'เกิดข้อผิดพลาด');
-            } finally {
-                exportBtn.innerHTML = originalBtnContent;
-                exportBtn.disabled = false;
+          if (res.ok) {
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+
+            const disposition = res.headers.get('content-disposition');
+            let filename = `orders-export.csv`;
+            if (disposition && disposition.includes('attachment')) {
+              const matches = /filename="([^"]+)"/.exec(disposition);
+              if (matches && matches[1]) filename = matches[1];
             }
-        });
+
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+          } else {
+            const errorMsg = await res.text();
+            showCustomAlert(errorMsg || 'ไม่มีข้อมูลออเดอร์ให้ Export', 'แจ้งเตือน');
+          }
+        } catch (err) {
+          console.error("CSV Export failed:", err);
+          showCustomAlert('การ Export ล้มเหลว กรุณาลองใหม่อีกครั้ง', 'เกิดข้อผิดพลาด');
+        } finally {
+          exportBtn.innerHTML = originalBtnContent;
+          exportBtn.disabled = false;
+        }
+      });
     }
-    
+
     el('search-q').addEventListener('input', () => {
       state.currentPage = 1;
       refreshOrders();
     });
     ['filter-status', 'filter-platform'].forEach(id => {
-        el(id).addEventListener('change', () => {
-          state.currentPage = 1;
-          refreshOrders();
-        });
+      el(id).addEventListener('change', () => {
+        state.currentPage = 1;
+        refreshOrders();
+      });
     });
-    
+
     qs('#orders-table').addEventListener('click', e => {
       const deleteBtn = e.target.closest('.btn-delete-order');
       const row = e.target.closest('tr.interactive-row');
@@ -597,31 +636,31 @@ function renderOrders(orders, total) {
         loadOrderIntoForm(row.dataset.id);
       }
     });
-    
+
     el('pagination-controls').addEventListener('click', handlePaginationClick);
 
     new Litepicker({
-        element: el('date-range-picker'),
-        singleMode: false,
-        autoApply: true,
-        startDate: startDate,
-        endDate: endDate,
-        format: 'YYYY-MM-DD',
-        separator: ' ถึง ',
-        setup: (picker) => {
-            picker.on('selected', (date1, date2) => {
-                startDateInput.value = picker.getStartDate().format('YYYY-MM-DD');
-                endDateInput.value = picker.getEndDate().format('YYYY-MM-DD');
-                state.currentPage = 1;
-                refreshOrders();
-            });
-            picker.on('clear:selection', () => {
-                startDateInput.value = '';
-                endDateInput.value = '';
-                state.currentPage = 1;
-                refreshOrders();
-            });
-        }
+      element: el('date-range-picker'),
+      singleMode: false,
+      autoApply: true,
+      startDate: startDate,
+      endDate: endDate,
+      format: 'YYYY-MM-DD',
+      separator: ' ถึง ',
+      setup: (picker) => {
+        picker.on('selected', (date1, date2) => {
+          startDateInput.value = picker.getStartDate().format('YYYY-MM-DD');
+          endDateInput.value = picker.getEndDate().format('YYYY-MM-DD');
+          state.currentPage = 1;
+          refreshOrders();
+        });
+        picker.on('clear:selection', () => {
+          startDateInput.value = '';
+          endDateInput.value = '';
+          state.currentPage = 1;
+          refreshOrders();
+        });
+      }
     });
 
   });
