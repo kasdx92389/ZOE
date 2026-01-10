@@ -57,12 +57,12 @@ const loadUsers = async (retries = 5, initialDelay = 2000) => {
             return; // If successful, exit the function
         } catch (error) {
             console.warn(`(Attempt ${i}/${retries}) Failed to load users. Retrying in ${initialDelay / 1000} seconds...`);
-            
+
             // If this is the last attempt, show a final error message
             if (i === retries) {
                 console.error('❌ Failed to load users from database after all retries.', error);
             }
-            
+
             // Wait before trying again
             await delay(initialDelay);
         }
@@ -106,7 +106,7 @@ app.get('/', (req, res) => {
     if (req.session.userId) {
         res.redirect('/admin/home');
     } else {
-        res.sendFile(path.join(__dirname, 'public', 'index.html')); 
+        res.sendFile(path.join(__dirname, 'public', 'index.html'));
     }
 });
 
@@ -197,7 +197,7 @@ app.get('/api/dashboard-data', async (req, res) => {
         let sortedGames = orderedGames;
         const activeGames = (await db.prepare("SELECT DISTINCT game_association FROM packages WHERE is_active = 1").all()).map(g => g.game_association);
         const finalSortedActiveGames = sortedGames.filter(g => activeGames.includes(g));
-        
+
         let query = 'SELECT * FROM packages';
         const params = [];
         if (game) {
@@ -284,7 +284,7 @@ app.delete('/api/packages/:id', async (req, res) => {
 app.post('/api/packages/order', async (req, res) => {
     const { order } = req.body;
     if (!Array.isArray(order)) return res.status(400).json({ error: 'Invalid order data' });
-    
+
     const client = await pgPool.connect();
     try {
         await client.query('BEGIN');
@@ -326,7 +326,7 @@ app.post('/api/packages/bulk-actions', async (req, res) => {
             const sql = `UPDATE packages SET ${setClauses.join(', ')} WHERE id = ANY($${paramIndex}::int[])`;
             await client.query(sql, params);
         }
-        
+
         await client.query('COMMIT');
         res.json({ ok: true, message: 'Bulk action successful' });
     } catch (error) {
@@ -343,7 +343,7 @@ app.post('/api/packages/bulk-actions', async (req, res) => {
 
 function buildOrdersQuery(queryParams) {
     const { q = '', status = '', platform = '', startDate, endDate, page = 1, limit = 20 } = queryParams;
-    
+
     let whereSql = ` FROM orders WHERE 1=1`;
     const params = [];
     let paramIndex = 1;
@@ -370,8 +370,8 @@ function buildOrdersQuery(queryParams) {
     }
 
     const countSql = `SELECT COUNT(*) as total` + whereSql;
-    let dataSql = `SELECT *` + whereSql + ` ORDER BY created_at DESC`;
-    
+    let dataSql = `SELECT *` + whereSql + ` ORDER BY order_date DESC, created_at DESC`;
+
     if (limit) {
         dataSql += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
         params.push(Number(limit), (Number(page) - 1) * Number(limit));
@@ -410,7 +410,7 @@ app.get('/api/orders', async (req, res) => {
             whereClauses.push(`((o.order_date::timestamptz) AT TIME ZONE 'Asia/Bangkok')::date <= $${paramIndex++}`);
             params.push(endDate);
         }
-        
+
         const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
         // --- Step 2: Build the main query with JOIN and JSON aggregation ---
@@ -424,12 +424,12 @@ app.get('/api/orders', async (req, res) => {
                 ) as items
             FROM orders o
             ${whereSql}
-            ORDER BY o.created_at DESC
+            ORDER BY o.order_date DESC, o.created_at DESC
             LIMIT $${paramIndex++} OFFSET $${paramIndex++}
         `;
-        
+
         const queryParams = [...params, Number(limit), (Number(page) - 1) * Number(limit)];
-        
+
         // --- Step 3: Build the count query ---
         const countQuery = `SELECT COUNT(*) as total FROM orders o ${whereSql}`;
         const countParams = params; // Parameters for count query are the same filters
@@ -476,7 +476,7 @@ app.post('/api/orders', async (req, res) => {
         const orderQuery = `INSERT INTO orders(order_number, order_date, platform, customer_name, game_name, total_paid, payment_proof_url, sales_proof_url, product_code, package_count, packages_text, cost, profit, status, operator, topup_channel, note) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`;
         const orderResult = await client.query(orderQuery, [orderNumber, b.order_date, b.platform, b.customer_name, b.game_name, totalPaid, b.payment_proof_url, b.sales_proof_url, b.product_code, packageCount, packagesText, cost, profit, b.status, b.operator, b.topup_channel, b.note]);
         const orderId = orderResult.rows[0].id;
-        
+
         if (Array.isArray(b.items) && b.items.length > 0) {
             const itemQuery = `INSERT INTO order_items(order_id, package_id, package_name, product_code, quantity, unit_price, cost, total_price) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`;
             for (const it of b.items) {
@@ -504,7 +504,7 @@ app.put('/api/orders/:orderNumber', async (req, res) => {
         await client.query('BEGIN');
         const orderResult = await client.query('SELECT id FROM orders WHERE order_number = $1', [orderNumber]);
         if (orderResult.rows.length === 0) throw new Error('OrderNotFound');
-        
+
         const numericId = orderResult.rows[0].id;
         const totalPaid = Number(b.total_paid || 0);
         const cost = Number(b.cost || 0);
@@ -513,7 +513,7 @@ app.put('/api/orders/:orderNumber', async (req, res) => {
         const packageCount = b.items?.reduce((a, c) => a + Number(c.quantity || 0), 0) || 0;
 
         await client.query(`UPDATE orders SET order_date=$1, platform=$2, customer_name=$3, game_name=$4, total_paid=$5, payment_proof_url=$6, sales_proof_url=$7, product_code=$8, package_count=$9, packages_text=$10, cost=$11, profit=$12, status=$13, operator=$14, topup_channel=$15, note=$16 WHERE id=$17`, [b.order_date, b.platform, b.customer_name, b.game_name, totalPaid, b.payment_proof_url, b.sales_proof_url, b.product_code, packageCount, packagesText, cost, profit, b.status, b.operator, b.topup_channel, b.note, numericId]);
-        
+
         await client.query('DELETE FROM order_items WHERE order_id = $1', [numericId]);
         if (Array.isArray(b.items) && b.items.length > 0) {
             const itemQuery = `INSERT INTO order_items(order_id, package_id, package_name, product_code, quantity, unit_price, cost, total_price) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`;
@@ -550,9 +550,9 @@ app.delete('/api/orders/:orderNumber', async (req, res) => {
 
 app.get('/api/orders/export/csv', async (req, res) => {
     try {
-        const queryParams = { ...req.query, limit: null }; 
+        const queryParams = { ...req.query, limit: null };
         const { dataSql, params } = buildOrdersQuery(queryParams);
-        
+
         const ordersResult = await pgPool.query(dataSql, params);
         const orders = ordersResult.rows;
 
@@ -577,7 +577,7 @@ app.get('/api/orders/export/csv', async (req, res) => {
         // --- โค้ดส่วนที่คุณส่งมา ---
         for (const order of orders) {
             const row = dbColumns.map(header => {
-                let value = order[header]; 
+                let value = order[header];
 
                 if (header === 'order_date' && value) {
                     const date = new Date(value);
@@ -631,55 +631,55 @@ app.listen(PORT, () => console.log(`Server is running at http://localhost:${PORT
 
 // Admin Summary page (requires login)
 app.get('/admin/summary', requireLogin, (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'admin-summary.html'));
+    res.sendFile(path.join(__dirname, 'public', 'admin-summary.html'));
 });
 
 // Helper: where-clause by Bangkok-local date
 function _buildSummaryWhere(startDate, endDate) {
-  let whereSql = " WHERE 1=1";
-  const params = [];
-  let i = 1;
-  if (startDate) {
-    whereSql += ` AND ((order_date::timestamptz) AT TIME ZONE 'Asia/Bangkok')::date >= $${i++}`;
-    params.push(startDate);
-  }
-  if (endDate) {
-    whereSql += ` AND ((order_date::timestamptz) AT TIME ZONE 'Asia/Bangkok')::date <= $${i++}`;
-    params.push(endDate);
-  }
-  return { whereSql, params };
+    let whereSql = " WHERE 1=1";
+    const params = [];
+    let i = 1;
+    if (startDate) {
+        whereSql += ` AND ((order_date::timestamptz) AT TIME ZONE 'Asia/Bangkok')::date >= $${i++}`;
+        params.push(startDate);
+    }
+    if (endDate) {
+        whereSql += ` AND ((order_date::timestamptz) AT TIME ZONE 'Asia/Bangkok')::date <= $${i++}`;
+        params.push(endDate);
+    }
+    return { whereSql, params };
 }
 
 // Aggregated Summary API
 // GET /api/summary?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
 app.get('/api/summary', async (req, res) => {
-  try {
-    const { startDate, endDate } = req.query;
-    const { whereSql, params } = _buildSummaryWhere(startDate, endDate);
+    try {
+        const { startDate, endDate } = req.query;
+        const { whereSql, params } = _buildSummaryWhere(startDate, endDate);
 
-    // Totals
-    const totalsSql = `
+        // Totals
+        const totalsSql = `
       SELECT 
         COUNT(*)::int AS order_count,
         COALESCE(SUM(total_paid),0)::numeric AS revenue,
         COALESCE(SUM(cost),0)::numeric AS cost,
         COALESCE(SUM(profit),0)::numeric AS profit
       FROM orders` + whereSql;
-    const totalsRow = (await pgPool.query(totalsSql, params)).rows?.[0] || {};
+        const totalsRow = (await pgPool.query(totalsSql, params)).rows?.[0] || {};
 
-    // Daily series
-    const dailySql = `
+        // Daily series
+        const dailySql = `
       SELECT 
         ((order_date::timestamptz) AT TIME ZONE 'Asia/Bangkok')::date AS day,
         COALESCE(SUM(total_paid),0)::numeric AS revenue,
         COALESCE(SUM(cost),0)::numeric AS cost,
         COALESCE(SUM(profit),0)::numeric AS profit
       FROM orders` + whereSql + " GROUP BY 1 ORDER BY 1";
-    const daily = (await pgPool.query(dailySql, params)).rows || [];
+        const daily = (await pgPool.query(dailySql, params)).rows || [];
 
-    // Revenue by game (top 10)
-    const whereJoin = whereSql.replace(/order_date/g, 'o.order_date');
-    const byGameSql = `
+        // Revenue by game (top 10)
+        const whereJoin = whereSql.replace(/order_date/g, 'o.order_date');
+        const byGameSql = `
       SELECT
         COALESCE(o.game_name, 'UNKNOWN') AS game,
         COALESCE(SUM(oi.total_price),0)::numeric AS revenue,
@@ -690,10 +690,10 @@ app.get('/api/summary', async (req, res) => {
       GROUP BY 1
       ORDER BY revenue DESC NULLS LAST
       LIMIT 10`;
-    const byGame = (await pgPool.query(byGameSql, params)).rows || [];
+        const byGame = (await pgPool.query(byGameSql, params)).rows || [];
 
-    // Revenue by platform
-    const byPlatformSql = `
+        // Revenue by platform
+        const byPlatformSql = `
       SELECT 
         COALESCE(platform,'UNKNOWN') AS platform,
         COUNT(*)::int AS order_count,
@@ -701,33 +701,33 @@ app.get('/api/summary', async (req, res) => {
       FROM orders` + whereSql + `
       GROUP BY 1
       ORDER BY revenue DESC NULLS LAST`;
-    const byPlatform = (await pgPool.query(byPlatformSql, params)).rows || [];
+        const byPlatform = (await pgPool.query(byPlatformSql, params)).rows || [];
 
-    // Status distribution
-    const byStatusSql = `
+        // Status distribution
+        const byStatusSql = `
       SELECT 
         COALESCE(status,'UNKNOWN') AS status,
         COUNT(*)::int AS count
       FROM orders` + whereSql + " GROUP BY 1 ORDER BY count DESC NULLS LAST";
-    const byStatus = (await pgPool.query(byStatusSql, params)).rows || [];
+        const byStatus = (await pgPool.query(byStatusSql, params)).rows || [];
 
-    res.json({
-      totals: {
-        orders: Number(totalsRow.order_count || 0),
-        revenue: Number(totalsRow.revenue || 0),
-        cost: Number(totalsRow.cost || 0),
-        profit: Number(totalsRow.profit || 0),
-        margin: Number(totalsRow.revenue || 0) > 0
-          ? Number(totalsRow.profit || 0) / Number(totalsRow.revenue || 0)
-          : 0
-      },
-      daily,
-      byGame,
-      byPlatform,
-      byStatus
-    });
-  } catch (err) {
-    console.error('Summary API error:', err);
-    res.status(500).json({ error: 'Failed to load summary' });
-  }
+        res.json({
+            totals: {
+                orders: Number(totalsRow.order_count || 0),
+                revenue: Number(totalsRow.revenue || 0),
+                cost: Number(totalsRow.cost || 0),
+                profit: Number(totalsRow.profit || 0),
+                margin: Number(totalsRow.revenue || 0) > 0
+                    ? Number(totalsRow.profit || 0) / Number(totalsRow.revenue || 0)
+                    : 0
+            },
+            daily,
+            byGame,
+            byPlatform,
+            byStatus
+        });
+    } catch (err) {
+        console.error('Summary API error:', err);
+        res.status(500).json({ error: 'Failed to load summary' });
+    }
 });
